@@ -124,7 +124,7 @@ const appointmentController = {
       }
 
       const [rows] = await db.query(
-        `SELECT a.id, a.appointment_date, a.appointment_time, a.location,
+        `SELECT a.id, a.user_id, a.appointment_date, a.appointment_time, a.location,
                 a.status, a.status_note, a.created_at,
                 u.first_name, u.last_name, u.phone, u.email
          FROM appointments a

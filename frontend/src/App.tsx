@@ -8,11 +8,20 @@ import Dashboard from './pages/Dashboard';
 import Assessment from './pages/Assessment';
 import MoodTracking from './pages/MoodTracking';
 import AppointmentPage from './pages/AppointmentPage';
+import ComplaintPage from './pages/Complaint';
+import PsyAppointment from './pages/PsyAppointment';
+import PsyPatients from './pages/PsyPatients';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const auth = useContext(AuthContext);
   if (auth?.loading) return <div style={{ padding: 24 }}>กำลังโหลด...</div>;
   return auth?.isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+};
+
+const AppointmentRoute = () => {
+  const auth = useContext(AuthContext);
+  if (auth?.user?.role === 'psychologist') return <PsyAppointment />;
+  return <AppointmentPage />;
 };
 
 function AppRoutes() {
@@ -39,7 +48,22 @@ function AppRoutes() {
       } />
       <Route path="/appointment" element={
         <PrivateRoute>
-          <MainLayout><AppointmentPage /></MainLayout>
+          <MainLayout><AppointmentRoute /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/complaint" element={
+        <PrivateRoute>
+          <MainLayout><ComplaintPage /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/psy-appointment" element={
+        <PrivateRoute>
+          <MainLayout><PsyAppointment /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="patients" element={
+        <PrivateRoute>
+          <MainLayout><PsyPatients /></MainLayout>
         </PrivateRoute>
       } />
     </Routes>
