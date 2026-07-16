@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, Col, message } from 'antd';
+import { Card, Table, Tag, Button, Modal, Form, Input, Typography, Row, Col, message } from 'antd';
 import dayjs from 'dayjs';
 import { appointmentService } from '../services/appointmentService';
-import type { Appointment } from '../services/appointmentService';
-import { DatePicker } from 'antd';
 import { patientService } from '../services/patientService';
+import type { Appointment } from '../services/appointmentService';
+import { DatePicker, TimePicker } from 'antd';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -20,12 +20,14 @@ const statusConfig: Record<string, { color: string; text: string }> = {
 const PsyAppointment: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm();
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [recordModalOpen, setRecordModalOpen] = useState(false);
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [nextApptModalOpen, setNextApptModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [existingRecord, setExistingRecord] = useState<any>(null);
+  const [statusForm] = Form.useForm();
   const [recordForm] = Form.useForm();
+  const [nextApptForm] = Form.useForm();
 
   const fetchAppointments = async () => {
     try {
@@ -40,12 +42,53 @@ const PsyAppointment: React.FC = () => {
     fetchAppointments();
   }, []);
 
-  const handleOpenModal = (record: Appointment) => {
+  // เปิด Modal บันทึกการรักษา + โหลดข้อมูลที่บันทึกไว้แล้ว
+  const handleOpenRecordModal = async (record: any) => {
     setSelectedAppt(record);
-    form.resetFields();
-    setModalOpen(true);
+    recordForm.resetFields();
+    setExistingRecord(null);
+    setRecordModalOpen(true);
+
+    try {
+      const data = await patientService.getRecordByAppointment(record.id);
+      if (data) {
+        setExistingRecord(data);
+        recordForm.setFieldsValue({
+          symptoms: data.symptoms,
+          symptom_cause: data.symptom_cause,
+          treatment: data.treatment,
+          treatment_result: data.treatment_result,
+        });
+      }
+    } catch {
+      console.error('โหลดบันทึกไม่สำเร็จ');
+    }
   };
 
+  // บันทึกการรักษา
+  const handleSaveRecord = async (values: any) => {
+    if (!selectedAppt) return;
+    setLoading(true);
+    try {
+      await patientService.addRecord({
+        patient_id: (selectedAppt as any).user_id,
+        appointment_id: selectedAppt.id,
+        symptoms: values.symptoms,
+        symptom_cause: values.symptom_cause,
+        treatment: values.treatment,
+        treatment_result: values.treatment_result,
+      });
+      message.success(existingRecord ? 'อัพเดทบันทึกสำเร็จ' : 'บันทึกการรักษาสำเร็จ');
+      setRecordModalOpen(false);
+      fetchAppointments();
+    } catch {
+      message.error('บันทึกไม่สำเร็จ');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // อัพเดทสถานะ
   const handleUpdateStatus = async (values: any) => {
     if (!selectedAppt) return;
     setLoading(true);
@@ -56,7 +99,7 @@ const PsyAppointment: React.FC = () => {
         values.status_note
       );
       message.success('อัพเดทสถานะสำเร็จ');
-      setModalOpen(false);
+      setStatusModalOpen(false);
       fetchAppointments();
     } catch {
       message.error('อัพเดทสถานะไม่สำเร็จ');
@@ -65,29 +108,34 @@ const PsyAppointment: React.FC = () => {
     }
   };
 
-  const handleAddRecord = async (values: any) => {
-  if (!selectedPatientId) return;
-  setLoading(true);
-  try {
-    await patientService.addRecord({
-      patient_id: selectedPatientId,
-      symptoms: values.symptoms,
-      symptom_cause: values.symptom_cause,
-      treatment: values.treatment,
-      treatment_result: values.treatment_result,
-      treatment_date: values.treatment_date.format('YYYY-MM-DD'),
-    });
-    message.success('บันทึกการรักษาสำเร็จ');
-    setRecordModalOpen(false);
-    recordForm.resetFields();
-  } catch {
-    message.error('บันทึกไม่สำเร็จ');
-  } finally {
-    setLoading(false);
-  }
-};
+  // นัดครั้งถัดไป
+  const handleNextAppointment = async (values: any) => {
+    if (!selectedAppt) return;
+    setLoading(true);
+    try {
+      await appointmentService.createAppointmentByPsy({
+        user_id: (selectedAppt as any).user_id,
+        psychologist_id: (selectedAppt as any).psychologist_id,
+        appointment_date: values.appointment_date.format('YYYY-MM-DD'),
+        appointment_time: values.appointment_time.format('HH:mm:ss'),
+        location: values.location,
+        note: values.note,
+      });
+      message.success('นัดหมายครั้งถัดไปสำเร็จ');
+      setNextApptModalOpen(false);
+      nextApptForm.resetFields();
+      fetchAppointments();
 
-  
+      // ถ้ายังไม่ได้บันทึกการรักษา ให้กลับมาหน้าบันทึก
+      if (!existingRecord) {
+        setRecordModalOpen(true);
+      }
+    } catch {
+      message.error('นัดหมายไม่สำเร็จ');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const columns = [
     {
@@ -97,8 +145,6 @@ const PsyAppointment: React.FC = () => {
           <Text strong>{record.first_name} {record.last_name}</Text>
           <br />
           <Text type="secondary">{record.email}</Text>
-          <br />
-          <Text type="secondary">{record.phone}</Text>
         </div>
       ),
     },
@@ -115,6 +161,7 @@ const PsyAppointment: React.FC = () => {
     {
       title: 'สถานที่',
       dataIndex: 'location',
+      render: (loc: string) => loc || '-',
     },
     {
       title: 'หมายเหตุ',
@@ -132,17 +179,18 @@ const PsyAppointment: React.FC = () => {
     {
       title: 'จัดการ',
       render: (_: any, record: any) => (
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {(record.status === 'pending' || record.status === 'approved') && (
-            <Button type="primary" size="small" onClick={() => handleOpenModal(record)}>
-            อัพเดทสถานะ
+            <Button type="primary" size="small" onClick={() => {
+              setSelectedAppt(record);
+              statusForm.resetFields();
+              setStatusModalOpen(true);
+            }}>
+              อัพเดทสถานะ
             </Button>
           )}
           {record.status === 'completed' && (
-            <Button size="small" onClick={() => {
-              setSelectedPatientId(record.user_id);
-              setRecordModalOpen(true);
-            }}>
+            <Button size="small" onClick={() => handleOpenRecordModal(record)}>
               บันทึกการรักษา
             </Button>
           )}
@@ -151,7 +199,6 @@ const PsyAppointment: React.FC = () => {
     },
   ];
 
-  // แยกตามสถานะ
   const pendingAppts = appointments.filter(a => a.status === 'pending');
   const otherAppts = appointments.filter(a => a.status !== 'pending');
 
@@ -159,7 +206,6 @@ const PsyAppointment: React.FC = () => {
     <div>
       <Title level={2}>จัดการนัดหมาย</Title>
 
-      {/* รอการอนุมัติ */}
       <Card
         title={
           <Row justify="space-between">
@@ -169,42 +215,34 @@ const PsyAppointment: React.FC = () => {
         }
         style={{ marginBottom: 24 }}
       >
-        <Table
-          dataSource={pendingAppts}
-          columns={columns}
-          rowKey="id"
-          locale={{ emptyText: 'ไม่มีรายการรออนุมัติ' }}
-        />
+        <Table dataSource={pendingAppts} columns={columns} rowKey="id"
+          locale={{ emptyText: 'ไม่มีรายการรออนุมัติ' }} />
       </Card>
 
-      {/* ประวัติทั้งหมด */}
       <Card title="ประวัติการนัดหมายทั้งหมด">
-        <Table
-          dataSource={otherAppts}
-          columns={columns}
-          rowKey="id"
-          locale={{ emptyText: 'ไม่มีประวัติการนัดหมาย' }}
-        />
+        <Table dataSource={otherAppts} columns={columns} rowKey="id"
+          locale={{ emptyText: 'ไม่มีประวัติการนัดหมาย' }} />
       </Card>
 
       {/* Modal อัพเดทสถานะ */}
       <Modal
-        title={`อัพเดทสถานะนัดหมาย — ${selectedAppt?.first_name} ${selectedAppt?.last_name}`}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={() => form.submit()}
+        title="อัพเดทสถานะนัดหมาย"
+        open={statusModalOpen}
+        onCancel={() => setStatusModalOpen(false)}
+        onOk={() => statusForm.submit()}
         okText="บันทึก"
         cancelText="ยกเลิก"
         confirmLoading={loading}
       >
-        <Form form={form} layout="vertical" onFinish={handleUpdateStatus}>
+        <Form form={statusForm} layout="vertical" onFinish={handleUpdateStatus}>
           <Form.Item name="status" label="สถานะใหม่"
             rules={[{ required: true, message: 'กรุณาเลือกสถานะ' }]}>
-            <Select placeholder="เลือกสถานะ">
-              <Select.Option value="approved">อนุมัติ</Select.Option>
-              <Select.Option value="rejected">ปฏิเสธ</Select.Option>
-              <Select.Option value="completed">เสร็จสิ้น</Select.Option>
-            </Select>
+            <select style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d9d9d9' }}>
+              <option value="">เลือกสถานะ</option>
+              <option value="approved">อนุมัติ</option>
+              <option value="rejected">ปฏิเสธ</option>
+              <option value="completed">เสร็จสิ้น</option>
+            </select>
           </Form.Item>
           <Form.Item name="status_note" label="หมายเหตุ">
             <TextArea rows={3} placeholder="เหตุผลหรือหมายเหตุเพิ่มเติม..." />
@@ -212,21 +250,21 @@ const PsyAppointment: React.FC = () => {
         </Form>
       </Modal>
 
+      {/* Modal บันทึกการรักษา */}
       <Modal
-        title="บันทึกการรักษา"
+        title={`บันทึกการรักษา — ${selectedAppt?.first_name} ${selectedAppt?.last_name}`}
         open={recordModalOpen}
-        onCancel={() => { setRecordModalOpen(false); recordForm.resetFields(); }}
-        onOk={() => recordForm.submit()}
-        okText="บันทึก"
-        cancelText="ยกเลิก"
-        confirmLoading={loading}
-        width={600}
+        onCancel={() => setRecordModalOpen(false)}
+        footer={null}
+        width={650}
       >
-        <Form form={recordForm} layout="vertical" onFinish={handleAddRecord}>
-          <Form.Item name="treatment_date" label="วันที่รักษา"
-            rules={[{ required: true, message: 'กรุณาเลือกวันที่' }]}>
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-          </Form.Item>
+        {existingRecord && (
+          <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+            <Text type="success">✅ มีบันทึกการรักษาครั้งนี้แล้ว (สามารถแก้ไขได้)</Text>
+          </div>
+        )}
+
+        <Form form={recordForm} layout="vertical" onFinish={handleSaveRecord}>
           <Form.Item name="symptoms" label="อาการ">
             <TextArea rows={2} placeholder="อาการของผู้ป่วย..." />
           </Form.Item>
@@ -238,6 +276,63 @@ const PsyAppointment: React.FC = () => {
           </Form.Item>
           <Form.Item name="treatment_result" label="ผลการรักษา">
             <TextArea rows={2} placeholder="ผลลัพธ์หลังการรักษา..." />
+          </Form.Item>
+
+          <Row gutter={8} justify="end">
+            <Col>
+              <Button onClick={() => {
+                setRecordModalOpen(false);
+                setNextApptModalOpen(true);
+              }}>
+                + นัดครั้งถัดไป
+              </Button>
+            </Col>
+            <Col>
+              <Button type="primary" onClick={() => recordForm.submit()} loading={loading}>
+                {existingRecord ? 'อัพเดทบันทึก' : 'บันทึกการรักษา'}
+              </Button>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      {/* Modal นัดครั้งถัดไป */}
+      <Modal
+        title="นัดหมายครั้งถัดไป"
+        open={nextApptModalOpen}
+        onCancel={() => {
+          setNextApptModalOpen(false);
+          if (!existingRecord) setRecordModalOpen(true);
+        }}
+        onOk={() => nextApptForm.submit()}
+        okText="นัดหมาย"
+        cancelText="ยกเลิก"
+        confirmLoading={loading}
+      >
+        <Form form={nextApptForm} layout="vertical" onFinish={handleNextAppointment}>
+          <Form.Item name="appointment_date" label="วันที่นัด"
+            rules={[{ required: true, message: 'กรุณาเลือกวันที่' }]}>
+            <DatePicker
+              style={{ width: '100%' }}
+              format="DD/MM/YYYY"
+              disabledDate={date => date.isBefore(dayjs())}
+              placeholder="เลือกวันที่"
+            />
+          </Form.Item>
+          <Form.Item name="appointment_time" label="เวลานัด"
+            rules={[{ required: true, message: 'กรุณาเลือกเวลา' }]}>
+            <TimePicker
+              style={{ width: '100%' }}
+              format="HH:mm"
+              minuteStep={30}
+            placeholder="เลือกเวลา"
+            />
+          </Form.Item>
+          <Form.Item name="location" label="สถานที่">
+            <Input placeholder="สถานที่นัดหมาย" />
+          </Form.Item>
+          <Form.Item name="note" label="หมายเหตุ">
+            <TextArea rows={2} placeholder="หมายเหตุเพิ่มเติม..." />
           </Form.Item>
         </Form>
       </Modal>

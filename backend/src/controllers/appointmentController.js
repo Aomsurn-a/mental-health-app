@@ -162,6 +162,38 @@ const appointmentController = {
       res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
     }
   },
+
+  // นักจิตนัดหมายแทนผู้ป่วย
+  createAppointmentByPsy: async (req, res) => {
+    try {
+      const { user_id, appointment_date, appointment_time, location, note } = req.body;
+      const psy_user_id = req.user.id;
+
+    // หา psychologist_id จาก user ที่ login อยู่
+      const [psy] = await db.query(
+        'SELECT id FROM psychologists WHERE user_id = ?',
+        [psy_user_id]
+      );
+      if (psy.length === 0) {
+        return res.status(404).json({ message: 'ไม่พบข้อมูลนักจิตวิทยา' });
+      }
+
+      const [result] = await db.query(
+        `INSERT INTO appointments 
+          (user_id, psychologist_id, appointment_date, appointment_time, location, status, status_note, created_by, updated_by)
+          VALUES (?, ?, ?, ?, ?, 'approved', ?, ?, ?)`,
+          [user_id, psy[0].id, appointment_date, appointment_time, location, note, psy_user_id, psy_user_id]
+        );
+
+      res.status(201).json({
+        message: 'นัดหมายครั้งถัดไปสำเร็จ',
+        appointment_id: result.insertId
+      });
+    } catch (error) {
+      console.error('CreateAppointmentByPsy error:', error);
+      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+    }
+  },
 };
 
 module.exports = appointmentController;

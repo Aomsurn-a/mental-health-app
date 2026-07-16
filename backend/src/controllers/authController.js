@@ -29,6 +29,13 @@ const authController = {
         [username, email, hashedPassword, first_name, last_name, phone, province, role || 'user']
       );
 
+      if ((role || 'user') === 'user') {
+        await db.query(
+          `INSERT INTO patients (user_id, created_by) VALUES (?, ?)`,
+          [result.insertId, result.insertId]
+        );
+      }
+
       // สร้าง token
       const token = jwt.sign(
         { id: result.insertId, role: role || 'user' },

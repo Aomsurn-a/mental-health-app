@@ -31,6 +31,18 @@ export interface PatientDetail {
     status: string;
     status_note: string;
   }[];
+  records: {
+    id: number;
+    session_number: number;
+    symptoms: string;
+    symptom_cause: string;
+    treatment: string;
+    treatment_result: string;
+    treatment_date: string;
+    appointment_id: number;
+    first_name: string;
+    last_name: string;
+  }[];
 }
 
 export const patientService = {
@@ -46,11 +58,11 @@ export const patientService = {
 
   addRecord: async (data: {
     patient_id: number;
+    appointment_id: number;
     symptoms?: string;
     symptom_cause?: string;
     treatment?: string;
     treatment_result?: string;
-    treatment_date: string;
   }): Promise<void> => {
     await api.post('/patient/record', data);
   },
@@ -66,6 +78,12 @@ export const patientService = {
     last_name: string;
   }[]> => {
     const response = await api.get(`/patient/${patient_id}/records`);
+    return response.data;
+  },
+
+  // เพิ่มใน patientService
+  getRecordByAppointment: async (appointment_id: number): Promise<any> => {
+    const response = await api.get(`/patient/record/appointment/${appointment_id}`);
     return response.data;
   },
 };

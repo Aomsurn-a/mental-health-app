@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Typography, Tag, Modal, Tabs, Row, Col, message } from 'antd';
-import { UserOutlined } from '@ant-design/icons';
+import { Card, Table, Typography, Tag, Modal, Tabs, Row, Col, Input, Form, Button, message } from 'antd';
+import { UserOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { patientService } from '../services/patientService';
 import type { Patient, PatientDetail } from '../services/patientService';
 
 const { Title, Text } = Typography;
+const { Search } = Input;
 
 const riskConfig: Record<string, { color: string; text: string }> = {
-  low:      { color: 'green',  text: 'ปกติ' },
-  medium:   { color: 'orange', text: 'ปานกลาง' },
-  high:     { color: 'red',    text: 'สูง' },
+  low:      { color: 'green',   text: 'ปกติ' },
+  medium:   { color: 'orange',  text: 'ปานกลาง' },
+  high:     { color: 'red',     text: 'สูง' },
   critical: { color: '#cf1322', text: 'รุนแรง' },
 };
 
@@ -32,22 +33,44 @@ const statusConfig: Record<string, { color: string; text: string }> = {
 
 const PsyPatients: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetail | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [recordDetailOpen, setRecordDetailOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [selectedApptId, setSelectedApptId] = useState<number | null>(null);
+  const [recordForm] = Form.useForm();
+  const [recordLoading, setRecordLoading] = useState(false);
 
   useEffect(() => {
     const fetchPatients = async () => {
       try {
         const data = await patientService.getMyPatients();
         setPatients(data);
+        setFilteredPatients(data);
       } catch {
         message.error('โหลดข้อมูลไม่สำเร็จ');
       }
     };
     fetchPatients();
   }, []);
+
+  const handleSearch = (value: string) => {
+    setSearchText(value);
+    if (!value) {
+      setFilteredPatients(patients);
+      return;
+    }
+    const filtered = patients.filter(p =>
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(value.toLowerCase()) ||
+      p.email?.toLowerCase().includes(value.toLowerCase()) ||
+      p.phone?.includes(value)
+    );
+    setFilteredPatients(filtered);
+  };
 
   const handleViewDetail = async (patient: Patient) => {
     setSelectedPatient(patient);
@@ -63,6 +86,50 @@ const PsyPatients: React.FC = () => {
     }
   };
 
+  const handleViewRecord = async (appt: any) => {
+    setSelectedApptId(appt.id);
+    setRecordDetailOpen(true);
+    recordForm.resetFields();
+    setSelectedRecord(null);
+    try {
+      const data = await patientService.getRecordByAppointment(appt.id);
+      if (data) {
+        setSelectedRecord(data);
+        recordForm.setFieldsValue({
+          symptoms: data.symptoms,
+          symptom_cause: data.symptom_cause,
+          treatment: data.treatment,
+          treatment_result: data.treatment_result,
+        });
+      }
+    } catch {
+      console.error('โหลดบันทึกไม่สำเร็จ');
+    }
+  };
+
+  const handleSaveRecord = async (values: any) => {
+    if (!selectedApptId || !selectedPatient) return;
+    setRecordLoading(true);
+    try {
+      await patientService.addRecord({
+        patient_id: selectedPatient.id,
+        appointment_id: selectedApptId,
+        symptoms: values.symptoms,
+        symptom_cause: values.symptom_cause,
+        treatment: values.treatment,
+        treatment_result: values.treatment_result,
+      });
+      message.success(selectedRecord ? 'อัพเดทบันทึกสำเร็จ' : 'บันทึกสำเร็จ');
+      setRecordDetailOpen(false);
+      const data = await patientService.getPatientDetail(selectedPatient.id);
+      setPatientDetail(data);
+    } catch {
+      message.error('บันทึกไม่สำเร็จ');
+    } finally {
+      setRecordLoading(false);
+    }
+  };
+
   const columns = [
     {
       title: 'ผู้ป่วย',
@@ -74,11 +141,7 @@ const PsyPatients: React.FC = () => {
         </div>
       ),
     },
-    {
-      title: 'เบอร์โทร',
-      dataIndex: 'phone',
-      render: (phone: string) => phone || '-',
-    },
+    { title: 'เบอร์โทร', dataIndex: 'phone', render: (phone: string) => phone || '-' },
     {
       title: 'จำนวนนัด',
       dataIndex: 'total_appointments',
@@ -98,14 +161,8 @@ const PsyPatients: React.FC = () => {
   ];
 
   const assessmentColumns = [
-    {
-      title: 'แบบประเมิน',
-      dataIndex: 'set_name',
-    },
-    {
-      title: 'คะแนน',
-      dataIndex: 'score',
-    },
+    { title: 'แบบประเมิน', dataIndex: 'set_name' },
+    { title: 'คะแนน', dataIndex: 'score' },
     {
       title: 'ระดับความเสี่ยง',
       dataIndex: 'risk_level',
@@ -118,9 +175,7 @@ const PsyPatients: React.FC = () => {
       title: 'คำแนะนำ',
       dataIndex: 'recommendation',
       render: (rec: string) => (
-        <Text style={{ maxWidth: 200, display: 'block' }} ellipsis={{ tooltip: rec }}>
-          {rec}
-        </Text>
+        <Text style={{ maxWidth: 200, display: 'block' }} ellipsis={{ tooltip: rec }}>{rec}</Text>
       ),
     },
     {
@@ -144,11 +199,7 @@ const PsyPatients: React.FC = () => {
         return <Text>{config?.icon} {config?.label}</Text>;
       },
     },
-    {
-      title: 'บันทึก',
-      dataIndex: 'note',
-      render: (note: string) => note || '-',
-    },
+    { title: 'บันทึก', dataIndex: 'note', render: (note: string) => note || '-' },
   ];
 
   const apptColumns = [
@@ -166,10 +217,14 @@ const PsyPatients: React.FC = () => {
         return <Tag color={config?.color}>{config?.text}</Tag>;
       },
     },
+    { title: 'หมายเหตุ', dataIndex: 'status_note', render: (note: string) => note || '-' },
     {
-      title: 'หมายเหตุ',
-      dataIndex: 'status_note',
-      render: (note: string) => note || '-',
+      title: 'บันทึกการรักษา',
+      render: (_: any, record: any) => (
+        record.status === 'completed' ? (
+          <Button size="small" onClick={() => handleViewRecord(record)}>ดูบันทึก</Button>
+        ) : '-'
+      ),
     },
   ];
 
@@ -178,14 +233,23 @@ const PsyPatients: React.FC = () => {
       <Title level={2}>รายชื่อผู้ป่วย</Title>
 
       <Card>
+        <Search
+          placeholder="ค้นหาชื่อ, อีเมล หรือเบอร์โทร..."
+          allowClear
+          enterButton={<SearchOutlined />}
+          style={{ maxWidth: 400, marginBottom: 16 }}
+          onSearch={handleSearch}
+          onChange={e => handleSearch(e.target.value)}
+        />
         <Table
-          dataSource={patients}
+          dataSource={filteredPatients}
           columns={columns}
           rowKey="id"
-          locale={{ emptyText: 'ยังไม่มีผู้ป่วย' }}
+          locale={{ emptyText: searchText ? 'ไม่พบผู้ป่วยที่ค้นหา' : 'ยังไม่มีผู้ป่วย' }}
         />
       </Card>
 
+      {/* Modal ประวัติผู้ป่วย */}
       <Modal
         title={
           <Row align="middle" gutter={8}>
@@ -196,7 +260,7 @@ const PsyPatients: React.FC = () => {
         open={modalOpen}
         onCancel={() => { setModalOpen(false); setPatientDetail(null); }}
         footer={null}
-        width={800}
+        width={900}
       >
         {detailLoading ? (
           <div style={{ textAlign: 'center', padding: 24 }}>กำลังโหลด...</div>
@@ -206,43 +270,66 @@ const PsyPatients: React.FC = () => {
               key: 'assessment',
               label: `ผลประเมิน (${patientDetail.assessments.length})`,
               children: (
-                <Table
-                  dataSource={patientDetail.assessments}
-                  columns={assessmentColumns}
-                  rowKey="id"
-                  size="small"
-                  locale={{ emptyText: 'ไม่มีผลประเมิน' }}
-                />
+                <Table dataSource={patientDetail.assessments} columns={assessmentColumns}
+                  rowKey="id" size="small" locale={{ emptyText: 'ไม่มีผลประเมิน' }} />
               ),
             },
             {
               key: 'mood',
               label: `Mood Tracking (${patientDetail.moods.length})`,
               children: (
-                <Table
-                  dataSource={patientDetail.moods}
-                  columns={moodColumns}
-                  rowKey="mood_date"
-                  size="small"
-                  locale={{ emptyText: 'ไม่มีข้อมูล Mood' }}
-                />
+                <Table dataSource={patientDetail.moods} columns={moodColumns}
+                  rowKey="mood_date" size="small" locale={{ emptyText: 'ไม่มีข้อมูล Mood' }} />
               ),
             },
             {
               key: 'appointment',
               label: `ประวัตินัดหมาย (${patientDetail.appointments.length})`,
               children: (
-                <Table
-                  dataSource={patientDetail.appointments}
-                  columns={apptColumns}
-                  rowKey="id"
-                  size="small"
-                  locale={{ emptyText: 'ไม่มีประวัติการนัดหมาย' }}
-                />
+                <Table dataSource={patientDetail.appointments} columns={apptColumns}
+                  rowKey="id" size="small" locale={{ emptyText: 'ไม่มีประวัติการนัดหมาย' }} />
               ),
             },
           ]} />
         )}
+      </Modal>
+
+      {/* Modal บันทึกการรักษา */}
+      <Modal
+        title={selectedRecord
+          ? `แก้ไขบันทึกการรักษา (ครั้งที่ ${selectedRecord.session_number})`
+          : 'บันทึกการรักษา'}
+        open={recordDetailOpen}
+        onCancel={() => setRecordDetailOpen(false)}
+        onOk={() => recordForm.submit()}
+        okText={selectedRecord ? 'อัพเดท' : 'บันทึก'}
+        cancelText="ปิด"
+        confirmLoading={recordLoading}
+        width={600}
+      >
+        {selectedRecord ? (
+          <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+            <Text type="success">✅ มีบันทึกอยู่แล้ว — สามารถแก้ไขได้</Text>
+          </div>
+        ) : (
+          <div style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+            <Text type="warning">⚠️ ยังไม่มีบันทึกการรักษาสำหรับการนัดหมายครั้งนี้</Text>
+          </div>
+        )}
+        <Form form={recordForm} layout="vertical" onFinish={handleSaveRecord}>
+          <Form.Item name="symptoms" label="อาการ">
+            <Input.TextArea rows={2} placeholder="อาการของผู้ป่วย..." />
+          </Form.Item>
+          <Form.Item name="symptom_cause" label="สาเหตุของอาการ">
+            <Input.TextArea rows={2} placeholder="สาเหตุที่ทำให้เกิดอาการ..." />
+          </Form.Item>
+          <Form.Item name="treatment" label="รายละเอียดการรักษา">
+            <Input.TextArea rows={3} placeholder="วิธีการรักษาและคำแนะนำ..." />
+          </Form.Item>
+          <Form.Item name="treatment_result" label="ผลการรักษา">
+            <Input.TextArea rows={2} placeholder="ผลลัพธ์หลังการรักษา..." />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

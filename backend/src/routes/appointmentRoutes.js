@@ -12,5 +12,6 @@ router.patch('/:id/cancel', authMiddleware, appointmentController.cancelAppointm
 // นักจิต
 router.get('/psy-appointments', authMiddleware, roleMiddleware('psychologist'), appointmentController.getPsychologistAppointments);
 router.patch('/:id/status', authMiddleware, roleMiddleware('psychologist'), appointmentController.updateAppointmentStatus);
+router.post('/by-psy', authMiddleware, roleMiddleware('psychologist'), appointmentController.createAppointmentByPsy);
 
 module.exports = router;

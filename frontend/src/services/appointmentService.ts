@@ -62,4 +62,16 @@ export const appointmentService = {
   updateAppointmentStatus: async (id: number, status: string, status_note?: string): Promise<void> => {
     await api.patch(`/appointment/${id}/status`, { status, status_note });
   },
+
+  // เพิ่มใน appointmentService
+  createAppointmentByPsy: async (data: {
+    user_id: number;
+    psychologist_id: number;
+    appointment_date: string;
+    appointment_time: string;
+    location?: string;
+    note?: string;
+  }): Promise<void> => {
+    await api.post('/appointment/by-psy', data);
+  },
 };
