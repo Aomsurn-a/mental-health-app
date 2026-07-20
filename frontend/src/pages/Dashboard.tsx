@@ -1,11 +1,16 @@
 import React, { useContext } from 'react';
 import { Card, Typography, Row, Col } from 'antd';
 import { AuthContext } from '../context/AuthContext';
+import AdminDashboard from './AdminDashboard';
 
 const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
   const auth = useContext(AuthContext);
+
+  if (auth?.user?.role === 'admin') {
+    return <AdminDashboard />;
+  }
 
   return (
     <div style={{ padding: 24 }}>

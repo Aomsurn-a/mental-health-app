@@ -8,7 +8,7 @@ const appointmentController = {
       const [rows] = await db.query(
         `SELECT p.id, p.license_number, p.specialty, p.hospital_clinic, 
                 p.phone, p.experience_years, p.bio,
-                u.first_name, u.last_name, u.email
+                u.id as user_id, u.first_name, u.last_name, u.email
          FROM psychologists p
          JOIN users u ON p.user_id = u.id
          WHERE p.active_flag = 1 AND u.status = 'active'`

@@ -24,8 +24,10 @@ const menuItems = {
   user: [
     { key: '/dashboard', icon: <HomeOutlined />, label: 'หน้าหลัก' },
     { key: '/assessment', icon: <FormOutlined />, label: 'แบบประเมินสุขภาพจิต' },
+    { key: '/assessment-history', icon: <FileTextOutlined />, label: 'ประวัติการประเมิน' },
     { key: '/mood', icon: <SmileOutlined />, label: 'Mood Tracking' },
     { key: '/appointment', icon: <CalendarOutlined />, label: 'นัดหมาย' },
+    { key: '/psychologists', icon: <TeamOutlined />, label: 'นักจิตวิทยา' },
     { key: '/chat', icon: <MessageOutlined />, label: 'แชท' },
     { key: '/complaint', icon: <FileTextOutlined />, label: 'คำร้อง' },
   ],
@@ -39,7 +41,7 @@ const menuItems = {
   admin: [
     { key: '/dashboard', icon: <HomeOutlined />, label: 'หน้าหลัก' },
     { key: '/users', icon: <TeamOutlined />, label: 'จัดการบัญชี' },
-    { key: '/complaint', icon: <FileTextOutlined />, label: 'คำร้อง' },
+    { key: '/complaint-admin', icon: <FileTextOutlined />, label: 'คำร้อง' },
     { key: '/report', icon: <FormOutlined />, label: 'รายงาน' },
   ],
 };
@@ -54,17 +56,23 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const menus = menuItems[role] || menuItems.user;
 
   const userMenuItems = [
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: 'ออกจากระบบ',
-      danger: true,
-      onClick: () => {
-        auth?.logout();
-        navigate('/login');
-      },
+  {
+    key: 'profile',
+    icon: <UserOutlined />,
+    label: 'ข้อมูลส่วนตัว',
+    onClick: () => navigate('/profile'),
+  },
+  {
+    key: 'logout',
+    icon: <LogoutOutlined />,
+    label: 'ออกจากระบบ',
+    danger: true,
+    onClick: () => {
+      auth?.logout();
+      navigate('/login');
     },
-  ];
+  },
+];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

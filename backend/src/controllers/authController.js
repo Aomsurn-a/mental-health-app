@@ -130,7 +130,57 @@ const authController = {
       console.error('GetMe error:', error);
       res.status(500).json({ message: 'เกิดข้อผิดพลาด กรุณาลองใหม่' });
     }
-  }
+  },
+
+  // แก้ไขข้อมูลส่วนตัว
+  updateProfile: async (req, res) => {
+    try {
+      const { first_name, last_name, phone, province } = req.body;
+      const user_id = req.user.id;
+
+      await db.query(
+        `UPDATE users SET first_name = ?, last_name = ?, phone = ?, province = ?, updated_by = ?
+         WHERE id = ?`,
+        [first_name, last_name, phone, province, user_id, user_id]
+      );
+
+      res.json({ message: 'อัพเดทข้อมูลสำเร็จ' });
+    } catch (error) {
+      console.error('UpdateProfile error:', error);
+      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+    }
+  },
+
+   // เปลี่ยนรหัสผ่าน
+  changePassword: async (req, res) => {
+    try {
+      const { old_password, new_password } = req.body;
+      const user_id = req.user.id;
+
+      // เช็ค password เดิม
+      const [users] = await db.query(
+        'SELECT password FROM users WHERE id = ?',
+        [user_id]
+      );
+
+      const isMatch = await bcrypt.compare(old_password, users[0].password);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'รหัสผ่านเดิมไม่ถูกต้อง' });
+      }
+
+      const hashedPassword = await bcrypt.hash(new_password, 10);
+      await db.query(
+        'UPDATE users SET password = ?, updated_by = ? WHERE id = ?',
+        [hashedPassword, user_id, user_id]
+      );
+
+      res.json({ message: 'เปลี่ยนรหัสผ่านสำเร็จ' });
+    } catch (error) {
+      console.error('ChangePassword error:', error);
+      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+    }
+  },
+  
 };
 
 module.exports = authController;

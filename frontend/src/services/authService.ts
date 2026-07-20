@@ -50,6 +50,19 @@ export const authService = {
   getToken: () => localStorage.getItem('token'),
   removeToken: () => localStorage.removeItem('token'),
   isAuthenticated: () => !!localStorage.getItem('token'),
+
+  updateProfile: async (data: {
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  province?: string;
+  }): Promise<void> => {
+    await api.put('/auth/profile', data);
+  },
+
+  changePassword: async (old_password: string, new_password: string): Promise<void> => {
+    await api.put('/auth/change-password', { old_password, new_password });
+  },
 };
 
 export default authService;

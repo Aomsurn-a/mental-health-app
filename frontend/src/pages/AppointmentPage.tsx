@@ -4,16 +4,17 @@ import { CalendarOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { appointmentService } from '../services/appointmentService';
 import type { Psychologist, Appointment } from '../services/appointmentService';
+import { useSearchParams } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 const statusConfig: Record<string, { color: string; text: string }> = {
-  pending:   { color: 'orange', text: 'รอการอนุมัติ' },
-  approved:  { color: 'green',  text: 'อนุมัติแล้ว' },
-  rejected:  { color: 'red',    text: 'ปฏิเสธ' },
-  cancelled: { color: 'gray',   text: 'ยกเลิกแล้ว' },
-  completed: { color: 'blue',   text: 'เสร็จสิ้น' },
+  pending: { color: 'orange', text: 'รอการอนุมัติ' },
+  approved: { color: 'green', text: 'อนุมัติแล้ว' },
+  rejected: { color: 'red', text: 'ปฏิเสธ' },
+  cancelled: { color: 'gray', text: 'ยกเลิกแล้ว' },
+  completed: { color: 'blue', text: 'เสร็จสิ้น' },
 };
 
 const AppointmentPage: React.FC = () => {
@@ -70,6 +71,17 @@ const AppointmentPage: React.FC = () => {
       message.error('ยกเลิกไม่สำเร็จ');
     }
   };
+
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const psyId = searchParams.get('psy_id');
+    if (psyId) {
+      // เปิด Modal และเลือก psychologist อัตโนมัติ
+      setModalOpen(true);
+      form.setFieldValue('psychologist_id', Number(psyId));
+    }
+  }, [searchParams]);
 
   const columns = [
     {

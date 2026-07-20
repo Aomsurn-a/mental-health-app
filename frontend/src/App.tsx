@@ -11,6 +11,13 @@ import AppointmentPage from './pages/AppointmentPage';
 import ComplaintPage from './pages/Complaint';
 import PsyAppointment from './pages/PsyAppointment';
 import PsyPatients from './pages/PsyPatients';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminUsers from './pages/AdminUsers';
+import AdminComplaints from './pages/AdminComplaints';
+import Chat from './pages/Chat';
+import Profile from './pages/Profile';
+import AssessmentHistory from './pages/AssessmentHistory';
+import PsychologistList from './pages/PsychologistList';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const auth = useContext(AuthContext);
@@ -64,6 +71,36 @@ function AppRoutes() {
       <Route path="patients" element={
         <PrivateRoute>
           <MainLayout><PsyPatients /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/users" element={
+        <PrivateRoute>
+          <MainLayout><AdminUsers /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/complaint-admin" element={
+        <PrivateRoute>
+          <MainLayout><AdminComplaints /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/chat" element = {
+        <PrivateRoute>
+          <MainLayout><Chat /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/profile" element = {
+        <PrivateRoute>
+          <MainLayout><Profile /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/assessment-history" element={
+        <PrivateRoute>
+          <MainLayout><AssessmentHistory /></MainLayout>
+        </PrivateRoute>
+      } /> 
+      <Route path="/psychologists" element={
+        <PrivateRoute>
+          <MainLayout><PsychologistList /></MainLayout>
         </PrivateRoute>
       } />
     </Routes>

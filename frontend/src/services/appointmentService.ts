@@ -2,6 +2,7 @@ import api from './api';
 
 export interface Psychologist {
   id: number;
+  user_id: number;
   license_number: string;
   specialty: string;
   hospital_clinic: string;

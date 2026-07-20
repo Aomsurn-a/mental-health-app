@@ -8,6 +8,8 @@ const moodRoutes = require('./routes/moodRoutes');
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const complaintRoutes = require('./routes/complaintRoutes');
 const patientRoutes = require('./routes/patientRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 
 const app = express();
 
@@ -20,6 +22,8 @@ app.use('/api/mood', moodRoutes);
 app.use('/api/appointment', appointmentRoutes);
 app.use('/api/complaint', complaintRoutes);
 app.use('/api/patient', patientRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/chat', chatRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Mental Health API is running!' });
