@@ -1,0 +1,43 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mental-health-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "T@nupaT78952"   # ใช้รหัสเดียวกับ DB_PASSWORD ใน .env เพราะ backend ต่อด้วย user root
+      MYSQL_DATABASE: mental_health_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # ถ้าใน Data/ มีไฟล์ .sql (schema/seed) จะถูก import อัตโนมัติตอนสร้าง container ครั้งแรกเท่านั้น
+      - ./Data:/docker-entrypoint-initdb.d
+
+  backend:
+    build: ./backend
+    container_name: mental-health-backend
+    restart: always
+    ports:
+      - "3000:3000"      # ตรงกับ PORT=3000 ใน .env
+    environment:
+      - DB_HOST=mysql     # override แค่ตัวนี้ ตัวแปรอื่น (DB_USER, DB_PASSWORD, DB_NAME, PORT, JWT_SECRET) อ่านจาก backend/.env ตามปกติ
+    depends_on:
+      - mysql
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./frontend
+    container_name: mental-health-frontend
+    restart: always
+    ports:
+      - "5173:5173"      # พอร์ต default ของ Vite dev server
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  mysql_data:
