@@ -5,7 +5,8 @@ export interface Psychologist {
   user_id: number;
   license_number: string;
   specialty: string;
-  hospital_clinic: string;
+  hospital_id: number | null;
+  hospital_name: string | null;
   phone: string;
   experience_years: number;
   bio: string;
@@ -25,7 +26,7 @@ export interface Appointment {
   first_name: string;
   last_name: string;
   specialty: string;
-  hospital_clinic: string;
+  hospital_name: string;
 }
 
 export interface CreateAppointmentRequest {
@@ -36,9 +37,33 @@ export interface CreateAppointmentRequest {
   note?: string;
 }
 
+export interface MyPsychologist {
+  user_id: number;
+  first_name: string;
+  last_name: string;
+}
+
+export interface CurrentPsychologist {
+  psychologist_id: number;
+  hospital_id: number | null;
+  user_id: number;
+  first_name: string;
+  last_name: string;
+}
+
 export const appointmentService = {
   getPsychologists: async (): Promise<Psychologist[]> => {
     const response = await api.get('/appointment/psychologists');
+    return response.data;
+  },
+
+  getMyPsychologists: async (): Promise<MyPsychologist[]> => {
+    const response = await api.get('/appointment/my-psychologists');
+    return response.data;
+  },
+
+  getCurrentPsychologist: async (): Promise<CurrentPsychologist | null> => {
+    const response = await api.get('/appointment/current-psychologist');
     return response.data;
   },
 

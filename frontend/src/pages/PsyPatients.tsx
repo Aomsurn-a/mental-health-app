@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Typography, Tag, Modal, Tabs, Row, Col, Input, Form, Button, message } from 'antd';
+import { Card, Table, Typography, Tag, Modal, Tabs, Row, Col, Input, Form, Button, message, Empty } from 'antd';
 import { UserOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, BarChart, Bar
+} from 'recharts';
 import dayjs from 'dayjs';
 import { patientService } from '../services/patientService';
 import type { Patient, PatientDetail } from '../services/patientService';
@@ -15,12 +19,12 @@ const riskConfig: Record<string, { color: string; text: string }> = {
   critical: { color: '#cf1322', text: 'รุนแรง' },
 };
 
-const moodConfig: Record<number, { icon: string; label: string }> = {
-  1: { icon: '😢', label: 'แย่มาก' },
-  2: { icon: '😞', label: 'แย่' },
-  3: { icon: '😐', label: 'ปานกลาง' },
-  4: { icon: '🙂', label: 'ดี' },
-  5: { icon: '😄', label: 'ดีมาก' },
+const moodConfig: Record<number, { icon: string; label: string; color: string }> = {
+  1: { icon: '😢', label: 'แย่มาก', color: '#ff4d4f' },
+  2: { icon: '😞', label: 'แย่', color: '#ff7a45' },
+  3: { icon: '😐', label: 'ปานกลาง', color: '#ffc53d' },
+  4: { icon: '🙂', label: 'ดี', color: '#73d13d' },
+  5: { icon: '😄', label: 'ดีมาก', color: '#36cfc9' },
 };
 
 const statusConfig: Record<string, { color: string; text: string }> = {
@@ -281,6 +285,70 @@ const PsyPatients: React.FC = () => {
                 <Table dataSource={patientDetail.moods} columns={moodColumns}
                   rowKey="mood_date" size="small" locale={{ emptyText: 'ไม่มีข้อมูล Mood' }} />
               ),
+            },
+            {
+              key: 'mood-chart',
+              label: 'กราฟ Mood',
+              children: (() => {
+                const sortedMoods = [...patientDetail.moods].sort(
+                  (a, b) => dayjs(a.mood_date).diff(dayjs(b.mood_date))
+                );
+                const lineData = sortedMoods.map(m => ({
+                  date: dayjs(m.mood_date).format('DD/MM'),
+                  score: m.mood_score,
+                }));
+                const barData = Object.entries(moodConfig).map(([score, config]) => ({
+                  name: `${config.icon} ${config.label}`,
+                  จำนวน: patientDetail.moods.filter(m => m.mood_score === Number(score)).length,
+                  fill: config.color,
+                }));
+
+                return sortedMoods.length === 0 ? (
+                  <Empty description="ไม่มีข้อมูล Mood" />
+                ) : (
+                  <>
+                    <Card title="แนวโน้มความรู้สึกรายวัน" size="small" style={{ marginBottom: 16 }}>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <LineChart data={lineData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" />
+                          <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]}
+                            tickFormatter={val => moodConfig[val]?.icon || val} />
+                          <Tooltip
+                            formatter={(value: any) => [
+                              `${moodConfig[value]?.icon} ${moodConfig[value]?.label}`,
+                              'ความรู้สึก',
+                            ]}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="score"
+                            stroke="#1677ff"
+                            strokeWidth={2}
+                            dot={{ fill: '#1677ff', r: 4 }}
+                            activeDot={{ r: 6 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </Card>
+                    <Card title="สรุปจำนวนวันตามระดับความรู้สึก" size="small">
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={barData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis allowDecimals={false} />
+                          <Tooltip />
+                          <Bar dataKey="จำนวน" radius={[4, 4, 0, 0]}>
+                            {barData.map((entry, index) => (
+                              <rect key={index} fill={entry.fill} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Card>
+                  </>
+                );
+              })(),
             },
             {
               key: 'appointment',

@@ -13,12 +13,12 @@ const chatController = {
       if (role === 'user') {
         [rows] = await db.query(
           `SELECT DISTINCT u.id, u.first_name, u.last_name, u.email,
-            p.specialty, p.hospital_clinic,
-            (SELECT message FROM chat_messages 
+            p.specialty, h.name as hospital_clinic,
+            (SELECT message FROM chat_messages
              WHERE (sender_id = ? AND receiver_id = u.id)
              OR (sender_id = u.id AND receiver_id = ?)
              ORDER BY sent_at DESC LIMIT 1) as last_message,
-            (SELECT sent_at FROM chat_messages 
+            (SELECT sent_at FROM chat_messages
              WHERE (sender_id = ? AND receiver_id = u.id)
              OR (sender_id = u.id AND receiver_id = ?)
              ORDER BY sent_at DESC LIMIT 1) as last_message_at,
@@ -26,6 +26,7 @@ const chatController = {
              WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count
           FROM psychologists p
           JOIN users u ON p.user_id = u.id
+          LEFT JOIN hospitals h ON p.hospital_id = h.id
           WHERE p.active_flag = 1 AND u.status = 'active'
           ORDER BY last_message_at DESC`,
           [user_id, user_id, user_id, user_id, user_id]

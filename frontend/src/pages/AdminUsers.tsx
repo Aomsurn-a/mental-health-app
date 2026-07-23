@@ -3,6 +3,8 @@ import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, 
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons';
 import { adminService } from '../services/adminService';
 import type { UserAdmin } from '../services/adminService';
+import { hospitalService } from '../services/hospitalService';
+import type { Hospital } from '../services/hospitalService';
 
 const { Title, Text } = Typography;
 
@@ -14,6 +16,7 @@ const roleConfig: Record<string, { color: string; text: string }> = {
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<UserAdmin[]>([]);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -35,6 +38,7 @@ const AdminUsers: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+    hospitalService.getAllHospitals().then(setHospitals).catch(() => {});
   }, []);
 
   const handleCreate = async (values: any) => {
@@ -220,8 +224,12 @@ const AdminUsers: React.FC = () => {
               <Form.Item name="specialty" label="ความเชี่ยวชาญ">
                 <Input placeholder="ความเชี่ยวชาญ" />
               </Form.Item>
-              <Form.Item name="hospital_clinic" label="โรงพยาบาล/คลินิก">
-                <Input placeholder="โรงพยาบาล/คลินิก" />
+              <Form.Item name="hospital_id" label="โรงพยาบาล/คลินิก">
+                <Select
+                  placeholder="เลือกโรงพยาบาล/คลินิก"
+                  allowClear
+                  options={hospitals.map(h => ({ value: h.id, label: h.name }))}
+                />
               </Form.Item>
               <Form.Item name="experience_years" label="ประสบการณ์ (ปี)">
                 <Input type="number" placeholder="ปี" />

@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Form, Select, DatePicker, TimePicker, Input, Typography, Table, Tag, Modal, Row, Col, message } from 'antd';
-import { CalendarOutlined, PlusOutlined } from '@ant-design/icons';
+import { Card, Button, Form, Select, Input, Typography, Table, Tag, Modal, Row, Col, message } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { appointmentService } from '../services/appointmentService';
 import type { Psychologist, Appointment } from '../services/appointmentService';
+import { hospitalService } from '../services/hospitalService';
+import type { Hospital } from '../services/hospitalService';
+import { scheduleService } from '../services/scheduleService';
+import type { AvailableSlot } from '../services/scheduleService';
 import { useSearchParams } from 'react-router-dom';
 
 const { Title, Text } = Typography;
@@ -19,19 +23,26 @@ const statusConfig: Record<string, { color: string; text: string }> = {
 
 const AppointmentPage: React.FC = () => {
   const [psychologists, setPsychologists] = useState<Psychologist[]>([]);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [selectedHospitalId, setSelectedHospitalId] = useState<number | undefined>(undefined);
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [selectedPsyId, setSelectedPsyId] = useState<number | undefined>(undefined);
   const [form] = Form.useForm();
 
   const fetchData = async () => {
     try {
-      const [psyData, apptData] = await Promise.all([
+      const [psyData, apptData, hospitalData] = await Promise.all([
         appointmentService.getPsychologists(),
         appointmentService.getMyAppointments(),
+        hospitalService.getAllHospitals(),
       ]);
       setPsychologists(psyData);
       setAppointments(apptData);
+      setHospitals(hospitalData);
     } catch {
       message.error('โหลดข้อมูลไม่สำเร็จ');
     }
@@ -41,13 +52,36 @@ const AppointmentPage: React.FC = () => {
     fetchData();
   }, []);
 
+  const psychologistsInHospital = selectedHospitalId
+    ? psychologists.filter(p => p.hospital_id === selectedHospitalId)
+    : psychologists;
+
+  const fetchAvailableSlots = async (psyId: number) => {
+    setSlotsLoading(true);
+    setAvailableSlots([]);
+    form.setFieldValue('slot_id', undefined);
+    try {
+      const slots = await scheduleService.getAvailableSlots(psyId);
+      setAvailableSlots(slots);
+    } catch {
+      message.error('โหลดช่วงเวลาว่างไม่สำเร็จ');
+    } finally {
+      setSlotsLoading(false);
+    }
+  };
+
   const handleSubmit = async (values: any) => {
+    const slot = availableSlots.find(s => s.id === values.slot_id);
+    if (!slot) {
+      message.error('กรุณาเลือกวันเวลาที่ว่าง');
+      return;
+    }
     setLoading(true);
     try {
       await appointmentService.createAppointment({
         psychologist_id: values.psychologist_id,
-        appointment_date: values.appointment_date.format('YYYY-MM-DD'),
-        appointment_time: values.appointment_time.format('HH:mm:ss'),
+        appointment_date: slot.work_date,
+        appointment_time: slot.start_time,
         location: values.location,
         note: values.note,
       });
@@ -76,12 +110,19 @@ const AppointmentPage: React.FC = () => {
 
   useEffect(() => {
     const psyId = searchParams.get('psy_id');
-    if (psyId) {
-      // เปิด Modal และเลือก psychologist อัตโนมัติ
+    if (psyId && psychologists.length > 0) {
+      // เปิด Modal และเลือกโรงพยาบาล + psychologist อัตโนมัติ
+      const psy = psychologists.find(p => p.id === Number(psyId));
       setModalOpen(true);
+      if (psy?.hospital_id) {
+        setSelectedHospitalId(psy.hospital_id);
+        form.setFieldValue('hospital_id', psy.hospital_id);
+      }
       form.setFieldValue('psychologist_id', Number(psyId));
+      setSelectedPsyId(Number(psyId));
+      fetchAvailableSlots(Number(psyId));
     }
-  }, [searchParams]);
+  }, [searchParams, psychologists]);
 
   const columns = [
     {
@@ -159,17 +200,37 @@ const AppointmentPage: React.FC = () => {
       <Modal
         title="ส่งคำขอนัดหมาย"
         open={modalOpen}
-        onCancel={() => { setModalOpen(false); form.resetFields(); }}
+        onCancel={() => { setModalOpen(false); form.resetFields(); setSelectedHospitalId(undefined); setSelectedPsyId(undefined); setAvailableSlots([]); }}
         onOk={() => form.submit()}
         okText="ส่งคำขอ"
         cancelText="ยกเลิก"
         confirmLoading={loading}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="psychologist_id" label="เลือกนักจิตวิทยา"
+          <Form.Item name="hospital_id" label="ขั้นตอนที่ 1: เลือกโรงพยาบาล/คลินิก"
+            rules={[{ required: true, message: 'กรุณาเลือกโรงพยาบาล/คลินิก' }]}>
+            <Select
+              placeholder="เลือกโรงพยาบาล/คลินิก"
+              options={hospitals.map(h => ({ value: h.id, label: h.name }))}
+              onChange={val => {
+                setSelectedHospitalId(val);
+                setSelectedPsyId(undefined);
+                setAvailableSlots([]);
+                form.setFieldValue('psychologist_id', undefined);
+                form.setFieldValue('slot_id', undefined);
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item name="psychologist_id" label="ขั้นตอนที่ 2: เลือกนักจิตวิทยา"
             rules={[{ required: true, message: 'กรุณาเลือกนักจิตวิทยา' }]}>
-            <Select placeholder="เลือกนักจิตวิทยา">
-              {psychologists.map(p => (
+            <Select
+              placeholder={selectedHospitalId ? 'เลือกนักจิตวิทยา' : 'กรุณาเลือกโรงพยาบาลก่อน'}
+              disabled={!selectedHospitalId}
+              notFoundContent="ไม่มีนักจิตวิทยาในโรงพยาบาลนี้"
+              onChange={val => { setSelectedPsyId(val); fetchAvailableSlots(val); }}
+            >
+              {psychologistsInHospital.map(p => (
                 <Select.Option key={p.id} value={p.id}>
                   {p.first_name} {p.last_name} — {p.specialty}
                 </Select.Option>
@@ -177,22 +238,20 @@ const AppointmentPage: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item name="appointment_date" label="วันที่นัด"
-            rules={[{ required: true, message: 'กรุณาเลือกวันที่' }]}>
-            <DatePicker
-              style={{ width: '100%' }}
-              disabledDate={date => date.isBefore(dayjs())}
-              format="DD/MM/YYYY"
-            />
-          </Form.Item>
-
-          <Form.Item name="appointment_time" label="เวลานัด"
-            rules={[{ required: true, message: 'กรุณาเลือกเวลา' }]}>
-            <TimePicker
-              style={{ width: '100%' }}
-              format="HH:mm"
-              minuteStep={30}
-            />
+          <Form.Item name="slot_id" label="ขั้นตอนที่ 3: เลือกวันเวลาที่ว่าง"
+            rules={[{ required: true, message: 'กรุณาเลือกวันเวลาที่ว่าง' }]}>
+            <Select
+              placeholder="เลือกวันเวลาที่ว่าง"
+              loading={slotsLoading}
+              disabled={!selectedPsyId}
+              notFoundContent={slotsLoading ? 'กำลังโหลด...' : 'ไม่มีช่วงเวลาว่าง'}
+            >
+              {availableSlots.map(s => (
+                <Select.Option key={s.id} value={s.id}>
+                  {dayjs(s.work_date).format('DD/MM/YYYY')} {s.start_time.slice(0, 5)}-{s.end_time.slice(0, 5)} น. (เหลือ {s.remaining} ที่)
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
 
           <Form.Item name="location" label="สถานที่">

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Typography, Tag, Button, Modal, Descriptions, Avatar, Input } from 'antd';
+import { Card, Row, Col, Typography, Tag, Button, Modal, Descriptions, Avatar, Input, Select } from 'antd';
 import { UserOutlined, SearchOutlined, MessageOutlined, CalendarOutlined } from '@ant-design/icons';
 import { appointmentService } from '../services/appointmentService';
 import type { Psychologist } from '../services/appointmentService';
+import { hospitalService } from '../services/hospitalService';
+import type { Hospital } from '../services/hospitalService';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -12,49 +14,71 @@ const { Search } = Input;
 
 const PsychologistList: React.FC = () => {
     const [psychologists, setPsychologists] = useState<Psychologist[]>([]);
+    const [hospitals, setHospitals] = useState<Hospital[]>([]);
     const [filtered, setFiltered] = useState<Psychologist[]>([]);
     const [selected, setSelected] = useState<Psychologist | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
+    const [selectedHospital, setSelectedHospital] = useState<number | undefined>(undefined);
+    const [keyword, setKeyword] = useState('');
     const navigate = useNavigate();
 
     useEffect(() => {
-        const fetchPsychologists = async () => {
+        const fetchData = async () => {
             try {
-                const data = await appointmentService.getPsychologists();
-                setPsychologists(data);
-                setFiltered(data);
+                const [psyData, hospitalData] = await Promise.all([
+                    appointmentService.getPsychologists(),
+                    hospitalService.getAllHospitals(),
+                ]);
+                setPsychologists(psyData);
+                setFiltered(psyData);
+                setHospitals(hospitalData);
             } catch {
                 console.error('โหลดข้อมูลไม่สำเร็จ');
             }
         };
-        fetchPsychologists();
+        fetchData();
     }, []);
 
-    const handleSearch = (value: string) => {
-        if (!value) {
-            setFiltered(psychologists);
-            return;
+    useEffect(() => {
+        let result = psychologists;
+        if (selectedHospital) {
+            result = result.filter(p => p.hospital_id === selectedHospital);
         }
-        const result = psychologists.filter(p =>
-            `${p.first_name} ${p.last_name}`.toLowerCase().includes(value.toLowerCase()) ||
-            p.specialty?.toLowerCase().includes(value.toLowerCase()) ||
-            p.hospital_clinic?.toLowerCase().includes(value.toLowerCase())
-        );
+        if (keyword) {
+            result = result.filter(p =>
+                `${p.first_name} ${p.last_name}`.toLowerCase().includes(keyword.toLowerCase()) ||
+                p.specialty?.toLowerCase().includes(keyword.toLowerCase()) ||
+                p.hospital_name?.toLowerCase().includes(keyword.toLowerCase())
+            );
+        }
         setFiltered(result);
-    };
+    }, [selectedHospital, keyword, psychologists]);
 
     return (
         <div>
             <Title level={2}>รายชื่อนักจิตวิทยา</Title>
 
-            <Search
-                placeholder="ค้นหาชื่อ, ความเชี่ยวชาญ หรือโรงพยาบาล..."
-                allowClear
-                enterButton={<SearchOutlined />}
-                style={{ maxWidth: 400, marginBottom: 24 }}
-                onSearch={handleSearch}
-                onChange={e => handleSearch(e.target.value)}
-            />
+            <Row gutter={16} style={{ marginBottom: 24 }}>
+                <Col flex="auto" style={{ maxWidth: 400 }}>
+                    <Search
+                        placeholder="ค้นหาชื่อ, ความเชี่ยวชาญ หรือโรงพยาบาล..."
+                        allowClear
+                        enterButton={<SearchOutlined />}
+                        onSearch={setKeyword}
+                        onChange={e => setKeyword(e.target.value)}
+                    />
+                </Col>
+                <Col>
+                    <Select
+                        placeholder="เลือกโรงพยาบาล/คลินิก"
+                        allowClear
+                        style={{ width: 220 }}
+                        value={selectedHospital}
+                        onChange={setSelectedHospital}
+                        options={hospitals.map(h => ({ value: h.id, label: h.name }))}
+                    />
+                </Col>
+            </Row>
 
             <Row gutter={[16, 16]}>
                 {filtered.map(psy => (
@@ -80,7 +104,7 @@ const PsychologistList: React.FC = () => {
                                         <Tag color="blue">{psy.specialty || 'ไม่ระบุ'}</Tag>
                                         <br />
                                         <Text type="secondary" style={{ fontSize: 12 }}>
-                                            {psy.hospital_clinic || 'ไม่ระบุสถานที่'}
+                                            {psy.hospital_name || 'ไม่ระบุสถานที่'}
                                         </Text>
                                         <br />
                                         <Text type="secondary" style={{ fontSize: 12 }}>
@@ -135,7 +159,7 @@ const PsychologistList: React.FC = () => {
                         </div>
                         <Descriptions column={1} bordered>
                             <Descriptions.Item label="โรงพยาบาล/คลินิก">
-                                {selected.hospital_clinic || '-'}
+                                {selected.hospital_name || '-'}
                             </Descriptions.Item>
                             <Descriptions.Item label="เบอร์โทร">
                                 {selected.phone || '-'}

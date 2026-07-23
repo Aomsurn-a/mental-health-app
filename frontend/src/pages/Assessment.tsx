@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Radio, Typography, Steps, Result, Tag, Spin, Row, Col } from 'antd';
+import { Card, Button, Radio, Typography, Steps, Result, Tag, Spin, Row, Col, Alert, Avatar, Empty } from 'antd';
+import { UserOutlined, CalendarOutlined, MessageOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { assessmentService } from '../services/assessmentService';
 import type { AssessmentSet, AssessmentSetDetail, AssessmentResult } from '../services/assessmentService';
+import { appointmentService } from '../services/appointmentService';
+import type { Psychologist } from '../services/appointmentService';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -11,6 +15,29 @@ const riskConfig = {
   medium: { color: 'orange', text: 'ปานกลาง' },
   high: { color: 'red', text: 'สูง' },
   critical: { color: '#cf1322', text: 'รุนแรง / ต้องการความช่วยเหลือด่วน' },
+};
+
+// การแนะนำนักจิตวิทยาตามระดับความเสี่ยง
+const recommendationConfig: Record<string, { title: string; message: string; alertType: 'success' | 'warning' | 'error'; count: number } | null> = {
+  low: null,
+  medium: {
+    title: 'แนะนำให้ปรึกษานักจิตวิทยา',
+    message: 'ผลประเมินอยู่ในระดับปานกลาง แนะนำให้ลองปรึกษานักจิตวิทยาเพื่อดูแลสุขภาพจิตของคุณ',
+    alertType: 'warning',
+    count: 3,
+  },
+  high: {
+    title: 'แนะนำให้พบนักจิตวิทยาโดยเร็ว',
+    message: 'ผลประเมินอยู่ในระดับสูง แนะนำให้พบนักจิตวิทยาโดยเร็วที่สุด',
+    alertType: 'error',
+    count: 3,
+  },
+  critical: {
+    title: 'แนะนำให้พบผู้เชี่ยวชาญทันที',
+    message: 'ผลประเมินอยู่ในระดับรุนแรง แนะนำให้พบแพทย์หรือนักจิตวิทยาทันที หากเป็นเหตุฉุกเฉินโปรดติดต่อสายด่วนสุขภาพจิต 1323',
+    alertType: 'error',
+    count: 3,
+  },
 };
 
 type PageState = 'list' | 'doing' | 'result';
@@ -23,6 +50,9 @@ const Assessment: React.FC = () => {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recommended, setRecommended] = useState<Psychologist[]>([]);
+  const [recLoading, setRecLoading] = useState(false);
+  const navigate = useNavigate();
 
   // โหลดรายการชุดประเมิน
   useEffect(() => {
@@ -75,6 +105,29 @@ const Assessment: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // โหลดรายชื่อนักจิตวิทยาที่แนะนำ ตามระดับความเสี่ยง
+  useEffect(() => {
+    if (pageState !== 'result' || !result || result.risk_level === 'low') {
+      setRecommended([]);
+      return;
+    }
+    const rec = recommendationConfig[result.risk_level];
+    if (!rec) return;
+
+    const fetchRecommended = async () => {
+      setRecLoading(true);
+      try {
+        const data = await appointmentService.getPsychologists();
+        setRecommended(data.slice(0, rec.count));
+      } catch {
+        console.error('โหลดรายชื่อนักจิตวิทยาไม่สำเร็จ');
+      } finally {
+        setRecLoading(false);
+      }
+    };
+    fetchRecommended();
+  }, [pageState, result]);
 
   // กลับไปหน้าหลัก
   const handleReset = () => {
@@ -188,8 +241,10 @@ const Assessment: React.FC = () => {
   // หน้าแสดงผล
   if (pageState === 'result' && result) {
     const config = riskConfig[result.risk_level];
+    const rec = recommendationConfig[result.risk_level];
+
     return (
-      <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      <div style={{ maxWidth: 800, margin: '0 auto' }}>
         <Result
           status={result.risk_level === 'low' ? 'success' : result.risk_level === 'medium' ? 'warning' : 'error'}
           title={
@@ -214,6 +269,72 @@ const Assessment: React.FC = () => {
             </Button>
           ]}
         />
+
+        {/* ระดับปกติ - ไม่จำเป็นต้องพบนักจิต */}
+        {result.risk_level === 'low' && (
+          <Card style={{ marginTop: 8 }}>
+            <Text>
+              ผลประเมินของคุณอยู่ในเกณฑ์ปกติ ดูแลสุขภาพจิตของตัวเองต่อไปนะครับ ไม่จำเป็นต้องพบนักจิตวิทยาในขณะนี้ 😊
+            </Text>
+          </Card>
+        )}
+
+        {/* ระดับ medium / high / critical - แนะนำนักจิตวิทยา */}
+        {rec && (
+          <Card title={rec.title} style={{ marginTop: 8 }}>
+            <Alert
+              type={rec.alertType}
+              showIcon
+              message={rec.message}
+              style={{ marginBottom: 16 }}
+            />
+
+            {recLoading ? (
+              <Spin />
+            ) : recommended.length === 0 ? (
+              <Empty description="ไม่พบนักจิตวิทยาที่แนะนำ" />
+            ) : (
+              <Row gutter={[16, 16]}>
+                {recommended.map(psy => (
+                  <Col xs={24} sm={12} key={psy.id}>
+                    <Card size="small">
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                        <Avatar size={40} icon={<UserOutlined />} style={{ background: '#1677ff', flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <Text strong>{psy.first_name} {psy.last_name}</Text>
+                          <br />
+                          <Tag color="blue" style={{ marginTop: 4 }}>{psy.specialty || 'ไม่ระบุความเชี่ยวชาญ'}</Tag>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              {psy.hospital_name || 'ไม่ระบุโรงพยาบาล/คลินิก'}
+                            </Text>
+                          </div>
+                          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                            <Button
+                              size="small"
+                              type="primary"
+                              icon={<CalendarOutlined />}
+                              onClick={() => navigate(`/appointment?psy_id=${psy.id}`)}
+                            >
+                              นัดหมาย
+                            </Button>
+                            <Button
+                              size="small"
+                              icon={<MessageOutlined />}
+                              onClick={() => navigate(`/chat?partner_id=${psy.id}`)}
+                            >
+                              แชท
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            )}
+          </Card>
+        )}
       </div>
     );
   }

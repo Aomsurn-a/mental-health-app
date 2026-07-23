@@ -5,14 +5,14 @@ const complaintController = {
   // ส่งคำร้อง (user/นักจิต)
   createComplaint: async (req, res) => {
     try {
-      const { type, detail, target_id } = req.body;
+      const { type, detail, target_id, full_legal_name } = req.body;
       const sender_id = req.user.id;
 
       const [result] = await db.query(
-        `INSERT INTO complaints 
-         (sender_id, target_id, type, detail, created_by, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [sender_id, target_id || null, type, detail, sender_id, sender_id]
+        `INSERT INTO complaints
+         (sender_id, target_id, full_legal_name, type, detail, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [sender_id, target_id || null, full_legal_name || null, type, detail, sender_id, sender_id]
       );
 
       res.status(201).json({
@@ -30,10 +30,12 @@ const complaintController = {
     try {
       const sender_id = req.user.id;
       const [rows] = await db.query(
-        `SELECT id, type, detail, status, resolved_note, created_at
-         FROM complaints
-         WHERE sender_id = ? AND active_flag = 1
-         ORDER BY created_at DESC`,
+        `SELECT c.id, c.type, c.detail, c.status, c.resolved_note, c.created_at,
+                hr.id as hospital_report_id
+         FROM complaints c
+         LEFT JOIN hospital_reports hr ON hr.complaint_id = c.id
+         WHERE c.sender_id = ? AND c.active_flag = 1
+         ORDER BY c.created_at DESC`,
         [sender_id]
       );
       res.json(rows);
@@ -47,10 +49,12 @@ const complaintController = {
   getAllComplaints: async (req, res) => {
     try {
       const [rows] = await db.query(
-        `SELECT c.id, c.type, c.detail, c.status, c.resolved_note, c.created_at,
-                u.first_name, u.last_name, u.email
+        `SELECT c.id, c.sender_id, c.target_id, c.type, c.detail, c.status, c.resolved_note, c.created_at,
+                u.first_name, u.last_name, u.email,
+                tu.first_name as target_first_name, tu.last_name as target_last_name
          FROM complaints c
          JOIN users u ON c.sender_id = u.id
+         LEFT JOIN users tu ON c.target_id = tu.id
          WHERE c.active_flag = 1
          ORDER BY c.created_at DESC`
       );

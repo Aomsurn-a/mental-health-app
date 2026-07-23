@@ -13,6 +13,8 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  BankOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { AuthContext } from '../context/AuthContext';
 
@@ -26,8 +28,9 @@ const menuItems = {
     { key: '/assessment', icon: <FormOutlined />, label: 'แบบประเมินสุขภาพจิต' },
     { key: '/assessment-history', icon: <FileTextOutlined />, label: 'ประวัติการประเมิน' },
     { key: '/mood', icon: <SmileOutlined />, label: 'Mood Tracking' },
-    { key: '/appointment', icon: <CalendarOutlined />, label: 'นัดหมาย' },
+    { key: '/mood-stats', icon: <SmileOutlined />, label: 'สถิติ Mood' },
     { key: '/psychologists', icon: <TeamOutlined />, label: 'นักจิตวิทยา' },
+    { key: '/appointment', icon: <CalendarOutlined />, label: 'นัดหมาย' },
     { key: '/chat', icon: <MessageOutlined />, label: 'แชท' },
     { key: '/complaint', icon: <FileTextOutlined />, label: 'คำร้อง' },
   ],
@@ -35,12 +38,14 @@ const menuItems = {
     { key: '/dashboard', icon: <HomeOutlined />, label: 'หน้าหลัก' },
     { key: '/appointment', icon: <CalendarOutlined />, label: 'จัดการนัดหมาย' },
     { key: '/patients', icon: <TeamOutlined />, label: 'ผู้ป่วย' },
+    { key: '/psy-schedule', icon: <ClockCircleOutlined />, label: 'ตารางงาน' },
     { key: '/chat', icon: <MessageOutlined />, label: 'แชท' },
     { key: '/complaint', icon: <FileTextOutlined />, label: 'คำร้อง' },
   ],
   admin: [
     { key: '/dashboard', icon: <HomeOutlined />, label: 'หน้าหลัก' },
     { key: '/users', icon: <TeamOutlined />, label: 'จัดการบัญชี' },
+    { key: '/hospitals', icon: <BankOutlined />, label: 'โรงพยาบาล/คลินิก' },
     { key: '/complaint-admin', icon: <FileTextOutlined />, label: 'คำร้อง' },
     { key: '/report', icon: <FormOutlined />, label: 'รายงาน' },
   ],

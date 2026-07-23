@@ -11,13 +11,16 @@ import AppointmentPage from './pages/AppointmentPage';
 import ComplaintPage from './pages/Complaint';
 import PsyAppointment from './pages/PsyAppointment';
 import PsyPatients from './pages/PsyPatients';
-import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/AdminUsers';
 import AdminComplaints from './pages/AdminComplaints';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import AssessmentHistory from './pages/AssessmentHistory';
 import PsychologistList from './pages/PsychologistList';
+import MoodStats from './pages/MoodStats';
+import AdminHospitals from './pages/AdminHospitals';
+import PsySchedule from './pages/PsySchedule';
+import AdminReports from './pages/AdminReports';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const auth = useContext(AuthContext);
@@ -83,12 +86,12 @@ function AppRoutes() {
           <MainLayout><AdminComplaints /></MainLayout>
         </PrivateRoute>
       } />
-      <Route path="/chat" element = {
+      <Route path="/chat" element={
         <PrivateRoute>
           <MainLayout><Chat /></MainLayout>
         </PrivateRoute>
       } />
-      <Route path="/profile" element = {
+      <Route path="/profile" element={
         <PrivateRoute>
           <MainLayout><Profile /></MainLayout>
         </PrivateRoute>
@@ -97,10 +100,30 @@ function AppRoutes() {
         <PrivateRoute>
           <MainLayout><AssessmentHistory /></MainLayout>
         </PrivateRoute>
-      } /> 
+      } />
       <Route path="/psychologists" element={
         <PrivateRoute>
           <MainLayout><PsychologistList /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/mood-stats" element={
+        <PrivateRoute>
+          <MainLayout><MoodStats /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/hospitals" element={
+        <PrivateRoute>
+          <MainLayout><AdminHospitals /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/psy-schedule" element={
+        <PrivateRoute>
+          <MainLayout><PsySchedule /></MainLayout>
+        </PrivateRoute>
+      } />
+      <Route path="/report" element={
+        <PrivateRoute>
+          <MainLayout><AdminReports /></MainLayout>
         </PrivateRoute>
       } />
     </Routes>

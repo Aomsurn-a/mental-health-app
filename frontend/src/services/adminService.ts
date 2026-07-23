@@ -14,10 +14,48 @@ export interface UserAdmin {
 }
 
 export interface AdminStats {
-  total_users: number;
-  total_psychologists: number;
-  total_appointments: number;
-  pending_complaints: number;
+  users: {
+    total_users: number;
+    total_psychologists: number;
+    total_admins: number;
+    suspended_psychologists: number;
+  };
+  appointments: {
+    total: number;
+    today: number;
+    by_status: Record<'pending' | 'approved' | 'completed' | 'rejected' | 'cancelled', number>;
+  };
+  complaints: {
+    total: number;
+    by_status: Record<'pending' | 'in_progress' | 'resolved' | 'rejected', number>;
+    pending_by_type: Record<'change_psychologist' | 'report_system' | 'report_psychologist' | 'other', number>;
+  };
+  reports: {
+    psychologist_pending: number;
+    psychologist_confirmed: number;
+    hospital_total: number;
+  };
+  hospitals: {
+    total: number;
+    active: number;
+  };
+  recent_complaints: {
+    id: number;
+    type: string;
+    status: string;
+    created_at: string;
+    first_name: string;
+    last_name: string;
+  }[];
+  recent_reports: {
+    id: number;
+    penalty_type: string | null;
+    report_count: number;
+    status: string;
+    created_at: string;
+    first_name: string;
+    last_name: string;
+  }[];
 }
 
 export const adminService = {

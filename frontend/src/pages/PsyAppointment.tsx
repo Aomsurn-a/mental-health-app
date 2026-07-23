@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Modal, Form, Input, Typography, Row, Col, message } from 'antd';
+import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, Col, message } from 'antd';
 import dayjs from 'dayjs';
 import { appointmentService } from '../services/appointmentService';
 import { patientService } from '../services/patientService';
 import type { Appointment } from '../services/appointmentService';
-import { DatePicker, TimePicker } from 'antd';
+import { scheduleService } from '../services/scheduleService';
+import type { AvailableSlot } from '../services/scheduleService';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -25,9 +26,25 @@ const PsyAppointment: React.FC = () => {
   const [nextApptModalOpen, setNextApptModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [existingRecord, setExistingRecord] = useState<any>(null);
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [statusForm] = Form.useForm();
   const [recordForm] = Form.useForm();
   const [nextApptForm] = Form.useForm();
+
+  const fetchAvailableSlots = async (psyId: number) => {
+    setSlotsLoading(true);
+    setAvailableSlots([]);
+    nextApptForm.setFieldValue('slot_id', undefined);
+    try {
+      const slots = await scheduleService.getAvailableSlots(psyId);
+      setAvailableSlots(slots);
+    } catch {
+      message.error('โหลดช่วงเวลาว่างไม่สำเร็จ');
+    } finally {
+      setSlotsLoading(false);
+    }
+  };
 
   const fetchAppointments = async () => {
     try {
@@ -108,30 +125,36 @@ const PsyAppointment: React.FC = () => {
     }
   };
 
-  // นัดครั้งถัดไป
+  // นัดครั้งถัดไป — ต้องเลือกจากช่วงเวลาว่างในตารางงานเท่านั้น
   const handleNextAppointment = async (values: any) => {
     if (!selectedAppt) return;
+    const slot = availableSlots.find(s => s.id === values.slot_id);
+    if (!slot || slot.remaining <= 0) {
+      message.error('กรุณาเลือกวันเวลาที่ว่าง');
+      return;
+    }
     setLoading(true);
     try {
       await appointmentService.createAppointmentByPsy({
         user_id: (selectedAppt as any).user_id,
         psychologist_id: (selectedAppt as any).psychologist_id,
-        appointment_date: values.appointment_date.format('YYYY-MM-DD'),
-        appointment_time: values.appointment_time.format('HH:mm:ss'),
+        appointment_date: slot.work_date,
+        appointment_time: slot.start_time,
         location: values.location,
         note: values.note,
       });
       message.success('นัดหมายครั้งถัดไปสำเร็จ');
       setNextApptModalOpen(false);
       nextApptForm.resetFields();
+      setAvailableSlots([]);
       fetchAppointments();
 
       // ถ้ายังไม่ได้บันทึกการรักษา ให้กลับมาหน้าบันทึก
       if (!existingRecord) {
         setRecordModalOpen(true);
       }
-    } catch {
-      message.error('นัดหมายไม่สำเร็จ');
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'นัดหมายไม่สำเร็จ');
     } finally {
       setLoading(false);
     }
@@ -283,6 +306,8 @@ const PsyAppointment: React.FC = () => {
               <Button onClick={() => {
                 setRecordModalOpen(false);
                 setNextApptModalOpen(true);
+                const psyId = (selectedAppt as any)?.psychologist_id;
+                if (psyId) fetchAvailableSlots(psyId);
               }}>
                 + นัดครั้งถัดไป
               </Button>
@@ -302,6 +327,7 @@ const PsyAppointment: React.FC = () => {
         open={nextApptModalOpen}
         onCancel={() => {
           setNextApptModalOpen(false);
+          setAvailableSlots([]);
           if (!existingRecord) setRecordModalOpen(true);
         }}
         onOk={() => nextApptForm.submit()}
@@ -310,23 +336,19 @@ const PsyAppointment: React.FC = () => {
         confirmLoading={loading}
       >
         <Form form={nextApptForm} layout="vertical" onFinish={handleNextAppointment}>
-          <Form.Item name="appointment_date" label="วันที่นัด"
-            rules={[{ required: true, message: 'กรุณาเลือกวันที่' }]}>
-            <DatePicker
-              style={{ width: '100%' }}
-              format="DD/MM/YYYY"
-              disabledDate={date => date.isBefore(dayjs())}
-              placeholder="เลือกวันที่"
-            />
-          </Form.Item>
-          <Form.Item name="appointment_time" label="เวลานัด"
-            rules={[{ required: true, message: 'กรุณาเลือกเวลา' }]}>
-            <TimePicker
-              style={{ width: '100%' }}
-              format="HH:mm"
-              minuteStep={30}
-            placeholder="เลือกเวลา"
-            />
+          <Form.Item name="slot_id" label="วันเวลาที่ว่างตามตารางงาน"
+            rules={[{ required: true, message: 'กรุณาเลือกวันเวลาที่ว่าง' }]}>
+            <Select
+              placeholder="เลือกวันเวลาที่ว่าง"
+              loading={slotsLoading}
+              notFoundContent={slotsLoading ? 'กำลังโหลด...' : 'ไม่มีช่วงเวลาว่างตามตารางงาน'}
+            >
+              {availableSlots.map(s => (
+                <Select.Option key={s.id} value={s.id}>
+                  {dayjs(s.work_date).format('DD/MM/YYYY')} {s.start_time.slice(0, 5)}-{s.end_time.slice(0, 5)} น. (เหลือ {s.remaining} ที่)
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
           <Form.Item name="location" label="สถานที่">
             <Input placeholder="สถานที่นัดหมาย" />

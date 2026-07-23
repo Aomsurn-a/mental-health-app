@@ -2,6 +2,8 @@ import React, { useContext } from 'react';
 import { Card, Typography, Row, Col } from 'antd';
 import { AuthContext } from '../context/AuthContext';
 import AdminDashboard from './AdminDashboard';
+import UserDashboard from './UserDashboard';
+import PsyDashboard from './PsyDashboard';
 
 const { Title, Text } = Typography;
 
@@ -10,6 +12,14 @@ const Dashboard: React.FC = () => {
 
   if (auth?.user?.role === 'admin') {
     return <AdminDashboard />;
+  }
+
+  if (auth?.user?.role === 'user') {
+    return <UserDashboard />;
+  }
+
+  if (auth?.user?.role === 'psychologist') {
+    return <PsyDashboard />;
   }
 
   return (

@@ -2,6 +2,9 @@ import api from './api';
 
 export interface Complaint {
   id: number;
+  sender_id?: number;
+  target_id?: number;
+  full_legal_name?: string;
   type: string;
   detail: string;
   status: 'pending' | 'in_progress' | 'resolved' | 'rejected';
@@ -10,12 +13,16 @@ export interface Complaint {
   first_name?: string;
   last_name?: string;
   email?: string;
+  target_first_name?: string;
+  target_last_name?: string;
+  hospital_report_id?: number | null;
 }
 
 export interface CreateComplaintRequest {
   type: string;
   detail: string;
   target_id?: number;
+  full_legal_name?: string;
 }
 
 export const complaintService = {
