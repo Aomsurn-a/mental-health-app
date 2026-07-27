@@ -1,13 +1,18 @@
 import React, { useEffect, useState, useRef, useContext } from 'react';
-import { Card, Input, Button, Typography, Badge, Avatar, List, Row, Col, message } from 'antd';
-import { SendOutlined, UserOutlined } from '@ant-design/icons';
+import { Card, Input, Button, Typography, Badge, Avatar, List, Row, Col, message, Alert, Segmented } from 'antd';
+import { SendOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { chatService } from '../services/chatService';
+import { aiChatService } from '../services/aiChatService';
 import { AuthContext } from '../context/AuthContext';
 import type { ChatPartner, ChatMessage } from '../services/chatService';
+import type { AiChatMessage } from '../services/aiChatService';
 import { useSearchParams } from 'react-router-dom';
 
 const { Text, Title } = Typography;
+
+type ChatMode = 'human' | 'ai';
+type AiDisplayItem = AiChatMessage | { id: string; role: 'system'; content: string };
 
 const Chat: React.FC = () => {
   const auth = useContext(AuthContext);
@@ -19,6 +24,14 @@ const Chat: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<any>(null);
   const lastIdRef = useRef<number>(0);
+
+  // AI chat mode
+  const [mode, setMode] = useState<ChatMode>('human');
+  const [aiMessages, setAiMessages] = useState<AiDisplayItem[]>([]);
+  const [aiLoaded, setAiLoaded] = useState(false);
+  const [aiInputMessage, setAiInputMessage] = useState('');
+  const [aiSending, setAiSending] = useState(false);
+  const aiMessagesEndRef = useRef<HTMLDivElement>(null);
 
   // โหลดรายชื่อที่คุยด้วยได้
   useEffect(() => {
@@ -41,6 +54,7 @@ const Chat: React.FC = () => {
   const handleSelectPartner = async (partner: ChatPartner) => {
     setSelectedPartner(partner);
     setMessages([]);
+    setMode('human');
     lastIdRef.current = 0;
 
     // หยุด polling เดิม
@@ -96,6 +110,10 @@ const Chat: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [aiMessages]);
+
   // ส่งข้อความ
   const handleSend = async () => {
     if (!inputMessage.trim() || !selectedPartner) return;
@@ -119,10 +137,69 @@ const Chat: React.FC = () => {
     }
   };
 
+  // โหมด AI: โหลดประวัติแชท AI (โหลดครั้งแรกเท่านั้น)
+  const handleSwitchToAi = async () => {
+    setMode('ai');
+    if (!aiLoaded) {
+      try {
+        const history = await aiChatService.getHistory();
+        setAiMessages(history);
+        setAiLoaded(true);
+      } catch {
+        message.error('โหลดประวัติแชท AI ไม่สำเร็จ');
+      }
+    }
+  };
+
+  const handleSendAi = async () => {
+    if (!aiInputMessage.trim()) return;
+    const text = aiInputMessage.trim();
+    setAiSending(true);
+    setAiInputMessage('');
+    try {
+      const result = await aiChatService.sendMessage(text);
+      const { user_message, assistant_message } = result.data;
+      setAiMessages(prev => {
+        const next: AiDisplayItem[] = [...prev, user_message, assistant_message];
+        if (user_message.risk_flag) {
+          next.push({
+            id: `notice-${user_message.id}`,
+            role: 'system',
+            content: 'ระบบได้แจ้งนักจิตวิทยาของคุณเรียบร้อยแล้ว',
+          });
+        }
+        return next;
+      });
+    } catch {
+      message.error('ส่งข้อความไม่สำเร็จ');
+    } finally {
+      setAiSending(false);
+    }
+  };
+
+  const handleAiKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendAi();
+    }
+  };
+
+  // เช็คว่านักจิตยังไม่ได้อ่านข้อความล่าสุดที่ user ส่งไป เกิน 5 นาทีหรือไม่
+  const currentPartnerData = selectedPartner
+    ? chatList.find(p => p.id === selectedPartner.id) || selectedPartner
+    : null;
+
+  const showAiPrompt = !!(
+    currentPartnerData &&
+    currentPartnerData.my_last_sent_read === 0 &&
+    currentPartnerData.my_last_sent_at &&
+    dayjs().diff(dayjs(currentPartnerData.my_last_sent_at), 'minute') >= 5
+  );
+
   return (
     <div>
       <Title level={2}>แชท</Title>
-      <Row gutter={16} style={{ height: 'calc(100vh - 200px)' }}>
+      <Row gutter={16} wrap={false} style={{ height: 'calc(100vh - 200px)' }}>
 
         {/* รายชื่อ */}
         <Col span={8}>
@@ -171,21 +248,144 @@ const Chat: React.FC = () => {
         {/* กล่องแชท */}
         <Col span={16}>
           <Card
-            title={selectedPartner
-              ? `${selectedPartner.first_name} ${selectedPartner.last_name}`
-              : 'เลือกคนที่ต้องการคุย'
+            title={
+              !selectedPartner
+                ? 'เลือกคนที่ต้องการคุย'
+                : mode === 'ai'
+                ? 'คุยกับ AI ระหว่างรอ'
+                : `${selectedPartner.first_name} ${selectedPartner.last_name}`
+            }
+            extra={
+              selectedPartner && (
+                <Segmented
+                  value={mode}
+                  onChange={(val) => (val === 'ai' ? handleSwitchToAi() : setMode('human'))}
+                  options={[
+                    { label: 'แชทกับนักจิต', value: 'human' },
+                    { label: 'คุยกับ AI', value: 'ai' },
+                  ]}
+                />
+              )
             }
             style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-            bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0 }}
+            bodyStyle={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}
           >
             {!selectedPartner ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Text type="secondary">เลือกรายชื่อเพื่อเริ่มสนทนา</Text>
               </div>
+            ) : mode === 'ai' ? (
+              <>
+                {/* Banner เตือน */}
+                <Alert
+                  type="warning"
+                  showIcon
+                  banner
+                  message="⚠️ นี่คือ AI ผู้ช่วยเบื้องต้น ไม่ใช่นักจิตวิทยาจริง คำแนะนำนี้ไม่สามารถทดแทนการรักษาทางการแพทย์ได้ หากมีเหตุฉุกเฉิน โทร 1323 (สายด่วนสุขภาพจิต) หรือ 1669"
+                  style={{ borderRadius: 0 }}
+                />
+
+                {/* ข้อความ AI */}
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, background: '#f5f5f5' }}>
+                  {aiMessages.length === 0 && (
+                    <div style={{ textAlign: 'center', marginTop: 40 }}>
+                      <Text type="secondary">เริ่มพูดคุยกับ AI ได้เลย</Text>
+                    </div>
+                  )}
+                  {aiMessages.map(msg => {
+                    if (msg.role === 'system') {
+                      return (
+                        <div key={msg.id} style={{ textAlign: 'center', margin: '8px 0' }}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>🔔 {msg.content}</Text>
+                        </div>
+                      );
+                    }
+                    const isMe = msg.role === 'user';
+                    return (
+                      <div key={msg.id} style={{
+                        display: 'flex',
+                        justifyContent: isMe ? 'flex-end' : 'flex-start',
+                        marginBottom: 12,
+                      }}>
+                        {!isMe && (
+                          <Avatar icon={<RobotOutlined />}
+                            style={{ background: '#722ed1', marginRight: 8, flexShrink: 0 }} />
+                        )}
+                        <div style={{ maxWidth: '65%' }}>
+                          <div style={{
+                            background: isMe ? '#1677ff' : 'white',
+                            color: isMe ? 'white' : 'black',
+                            padding: '8px 12px',
+                            borderRadius: isMe ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                            wordBreak: 'break-word',
+                          }}>
+                            {msg.content}
+                          </div>
+                          {'created_at' in msg && (
+                            <Text type="secondary" style={{
+                              fontSize: 11, marginTop: 2, display: 'block',
+                              textAlign: isMe ? 'right' : 'left'
+                            }}>
+                              {dayjs(msg.created_at).format('HH:mm')}
+                            </Text>
+                          )}
+                        </div>
+                        {isMe && (
+                          <Avatar icon={<UserOutlined />}
+                            style={{ background: '#52c41a', marginLeft: 8, flexShrink: 0 }} />
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div ref={aiMessagesEndRef} />
+                </div>
+
+                {/* กล่องพิมพ์ AI */}
+                <div style={{ padding: 12, background: 'white', borderTop: '1px solid #f0f0f0' }}>
+                  <Row gutter={8} align="middle">
+                    <Col flex={1}>
+                      <Input.TextArea
+                        value={aiInputMessage}
+                        onChange={e => setAiInputMessage(e.target.value)}
+                        onKeyPress={handleAiKeyPress}
+                        placeholder="พิมพ์ข้อความถึง AI... (Enter เพื่อส่ง)"
+                        autoSize={{ minRows: 1, maxRows: 4 }}
+                        style={{ borderRadius: 20 }}
+                      />
+                    </Col>
+                    <Col>
+                      <Button
+                        type="primary"
+                        shape="circle"
+                        icon={<SendOutlined />}
+                        onClick={handleSendAi}
+                        loading={aiSending}
+                        disabled={!aiInputMessage.trim()}
+                      />
+                    </Col>
+                  </Row>
+                </div>
+              </>
             ) : (
               <>
+                {showAiPrompt && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="นักจิตยังไม่ได้อ่านข้อความของคุณ"
+                    description="นักจิตวิทยายังไม่ได้อ่านข้อความล่าสุดของคุณเกิน 5 นาทีแล้ว คุณสามารถคุยกับ AI ระหว่างรอได้"
+                    action={
+                      <Button size="small" type="primary" onClick={handleSwitchToAi}>
+                        คุยกับ AI ระหว่างรอ
+                      </Button>
+                    }
+                    style={{ margin: 12, borderRadius: 8 }}
+                  />
+                )}
+
                 {/* ข้อความ */}
-                <div style={{ flex: 1, overflow: 'auto', padding: 16, background: '#f5f5f5' }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, background: '#f5f5f5' }}>
                   {messages.length === 0 && (
                     <div style={{ textAlign: 'center', marginTop: 40 }}>
                       <Text type="secondary">เริ่มการสนทนาได้เลย</Text>

@@ -10,6 +10,8 @@ export interface ChatPartner {
   last_message?: string;
   last_message_at?: string;
   unread_count: number;
+  my_last_sent_at?: string;
+  my_last_sent_read?: number;
 }
 
 export interface ChatMessage {

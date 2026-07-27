@@ -15,6 +15,8 @@ import { reportService } from '../services/reportService';
 import type { MyPsychologistReport } from '../services/reportService';
 import { scheduleService } from '../services/scheduleService';
 import type { WeekDetail } from '../services/scheduleService';
+import { complaintService } from '../services/complaintService';
+import type { AiRiskComplaint } from '../services/complaintService';
 
 const { Title, Text } = Typography;
 
@@ -43,19 +45,22 @@ const PsyDashboard: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [reports, setReports] = useState<MyPsychologistReport[]>([]);
   const [thisWeek, setThisWeek] = useState<WeekDetail | null>(null);
+  const [aiAlerts, setAiAlerts] = useState<AiRiskComplaint[]>([]);
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [apptData, patientData, reportData, weeks] = await Promise.all([
+        const [apptData, patientData, reportData, weeks, alertData] = await Promise.all([
           appointmentService.getPsychologistAppointments(),
           patientService.getMyPatients(),
           reportService.getMyReports(),
           scheduleService.getWeeks(),
+          complaintService.getMyAiAlerts(),
         ]);
         setAppointments(apptData);
         setPatients(patientData);
         setReports(reportData);
+        setAiAlerts(alertData);
 
         const today = dayjs();
         const currentWeek = weeks.find(w =>
@@ -78,6 +83,15 @@ const PsyDashboard: React.FC = () => {
     try {
       await reportService.acknowledgeReport(id);
       setReports(prev => prev.map(r => (r.id === id ? { ...r, acknowledged_at: dayjs().toISOString() } : r)));
+    } catch {
+      // ปิดไม่สำเร็จ ไม่ต้องรบกวนผู้ใช้ — แจ้งเตือนจะกลับมาแสดงใหม่ตอนโหลดหน้าครั้งถัดไป
+    }
+  };
+
+  const handleAcknowledgeAiAlert = async (id: number) => {
+    try {
+      await complaintService.acknowledgeAiAlert(id);
+      setAiAlerts(prev => prev.filter(a => a.id !== id));
     } catch {
       // ปิดไม่สำเร็จ ไม่ต้องรบกวนผู้ใช้ — แจ้งเตือนจะกลับมาแสดงใหม่ตอนโหลดหน้าครั้งถัดไป
     }
@@ -113,6 +127,25 @@ const PsyDashboard: React.FC = () => {
 
   return (
     <div>
+      {aiAlerts.length > 0 && (
+        <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
+          {aiAlerts.map(a => (
+            <Alert
+              key={a.id}
+              type="error"
+              showIcon
+              message={`⚠️ ผู้ป่วย ${a.first_name} ${a.last_name} มีความเสี่ยงจากการสนทนากับ AI เมื่อ ${dayjs(a.created_at).format('DD/MM/YYYY HH:mm')} กรุณาติดต่อด่วน`}
+              description={a.detail}
+              action={
+                <Button size="small" danger onClick={() => handleAcknowledgeAiAlert(a.id)}>
+                  รับทราบ
+                </Button>
+              }
+            />
+          ))}
+        </Space>
+      )}
+
       {unreadReports.length > 0 && (
         <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
           {unreadReports.map(r => (

@@ -25,6 +25,16 @@ export interface CreateComplaintRequest {
   full_legal_name?: string;
 }
 
+export interface AiRiskComplaint {
+  id: number;
+  sender_id: number;
+  first_name: string;
+  last_name: string;
+  detail: string;
+  status: string;
+  created_at: string;
+}
+
 export const complaintService = {
   createComplaint: async (data: CreateComplaintRequest): Promise<void> => {
     await api.post('/complaint', data);
@@ -42,5 +52,14 @@ export const complaintService = {
 
   updateStatus: async (id: number, status: string, resolved_note?: string): Promise<void> => {
     await api.patch(`/complaint/${id}/status`, { status, resolved_note });
+  },
+
+  getMyAiAlerts: async (): Promise<AiRiskComplaint[]> => {
+    const response = await api.get('/complaint/ai-alerts');
+    return response.data;
+  },
+
+  acknowledgeAiAlert: async (id: number): Promise<void> => {
+    await api.patch(`/complaint/ai-alerts/${id}/acknowledge`);
   },
 };

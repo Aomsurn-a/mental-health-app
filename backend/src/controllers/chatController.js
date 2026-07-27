@@ -23,13 +23,19 @@ const chatController = {
              OR (sender_id = u.id AND receiver_id = ?)
              ORDER BY sent_at DESC LIMIT 1) as last_message_at,
             (SELECT COUNT(*) FROM chat_messages
-             WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count
+             WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count,
+            (SELECT sent_at FROM chat_messages
+             WHERE sender_id = ? AND receiver_id = u.id
+             ORDER BY sent_at DESC LIMIT 1) as my_last_sent_at,
+            (SELECT is_read FROM chat_messages
+             WHERE sender_id = ? AND receiver_id = u.id
+             ORDER BY sent_at DESC LIMIT 1) as my_last_sent_read
           FROM psychologists p
           JOIN users u ON p.user_id = u.id
           LEFT JOIN hospitals h ON p.hospital_id = h.id
           WHERE p.active_flag = 1 AND u.status = 'active'
           ORDER BY last_message_at DESC`,
-          [user_id, user_id, user_id, user_id, user_id]
+          [user_id, user_id, user_id, user_id, user_id, user_id, user_id]
         );
       } else if (role === 'psychologist') {
         // นักจิตเห็น user ที่เคยนัดด้วย

@@ -83,6 +83,56 @@ const complaintController = {
       res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
     }
   },
+
+  // นักจิต: ดึงแจ้งเตือนความเสี่ยงจาก AI ของผู้ป่วยในความดูแล ที่ยังไม่ resolved
+  getMyAiAlerts: async (req, res) => {
+    try {
+      const psychologist_user_id = req.user.id;
+      const [rows] = await db.query(
+        `SELECT c.id, c.sender_id, c.detail, c.status, c.created_at,
+                u.first_name, u.last_name
+         FROM complaints c
+         JOIN users u ON u.id = c.sender_id
+         WHERE c.type = 'ai_risk_alert' AND c.status != 'resolved' AND c.active_flag = 1
+         AND c.sender_id IN (
+           SELECT a.user_id FROM appointments a
+           JOIN psychologists p ON a.psychologist_id = p.id
+           WHERE p.user_id = ? AND a.active_flag = 1
+         )
+         ORDER BY c.created_at DESC`,
+        [psychologist_user_id]
+      );
+      res.json(rows);
+    } catch (error) {
+      console.error('GetMyAiAlerts error:', error);
+      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+    }
+  },
+
+  // นักจิต: รับทราบการแจ้งเตือนความเสี่ยงจาก AI
+  acknowledgeAiAlert: async (req, res) => {
+    try {
+      const psychologist_user_id = req.user.id;
+      const { id } = req.params;
+
+      await db.query(
+        `UPDATE complaints c
+         JOIN (
+           SELECT a.user_id FROM appointments a
+           JOIN psychologists p ON a.psychologist_id = p.id
+           WHERE p.user_id = ? AND a.active_flag = 1
+         ) patients ON patients.user_id = c.sender_id
+         SET c.status = 'in_progress', c.updated_by = ?
+         WHERE c.id = ? AND c.type = 'ai_risk_alert'`,
+        [psychologist_user_id, psychologist_user_id, id]
+      );
+
+      res.json({ message: 'รับทราบเรียบร้อย' });
+    } catch (error) {
+      console.error('AcknowledgeAiAlert error:', error);
+      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+    }
+  },
 };
 
 module.exports = complaintController;
