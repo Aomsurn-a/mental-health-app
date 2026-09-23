@@ -1,22 +1,27 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { Card, Row, Col, Typography, Tag, Button, List, Empty, Spin, Alert, Space, Statistic } from 'antd';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { Card, Row, Col, Typography, Tag, Button, List, Empty, Alert, Space, Statistic } from 'antd';
 import {
   CalendarOutlined, TeamOutlined, FileTextOutlined, ClockCircleOutlined,
   RightOutlined, ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { appointmentService } from '../services/appointmentService';
-import type { Appointment } from '../services/appointmentService';
 import { patientService } from '../services/patientService';
-import type { Patient } from '../services/patientService';
 import { reportService } from '../services/reportService';
-import type { MyPsychologistReport } from '../services/reportService';
 import { scheduleService } from '../services/scheduleService';
-import type { WeekDetail } from '../services/scheduleService';
 import { complaintService } from '../services/complaintService';
-import type { AiRiskComplaint } from '../services/complaintService';
+
+import { useDashboardResource } from '../hooks/useDashboardResource';
+import { DashboardSection } from '../components/DashboardSection';
+import { dashboardError } from '../utils/dashboardError';
+async function loadCurrentWeek() {
+  const weeks = await scheduleService.getWeeks();
+  const today = dayjs();
+  const week = weeks.find(w => !today.isBefore(dayjs(w.week_start), 'day') && !today.isAfter(dayjs(w.week_end), 'day'));
+  return week ? scheduleService.getWeekDetail(week.id) : null;
+}
 
 const { Title, Text } = Typography;
 
@@ -40,80 +45,53 @@ const PsyDashboard: React.FC = () => {
   const auth = useContext(AuthContext);
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [reports, setReports] = useState<MyPsychologistReport[]>([]);
-  const [thisWeek, setThisWeek] = useState<WeekDetail | null>(null);
-  const [aiAlerts, setAiAlerts] = useState<AiRiskComplaint[]>([]);
-
-  useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [apptData, patientData, reportData, weeks, alertData] = await Promise.all([
-          appointmentService.getPsychologistAppointments(),
-          patientService.getMyPatients(),
-          reportService.getMyReports(),
-          scheduleService.getWeeks(),
-          complaintService.getMyAiAlerts(),
-        ]);
-        setAppointments(apptData);
-        setPatients(patientData);
-        setReports(reportData);
-        setAiAlerts(alertData);
-
-        const today = dayjs();
-        const currentWeek = weeks.find(w =>
-          !today.isBefore(dayjs(w.week_start), 'day') && !today.isAfter(dayjs(w.week_end), 'day')
-        );
-        if (currentWeek) {
-          const detail = await scheduleService.getWeekDetail(currentWeek.id);
-          setThisWeek(detail);
-        }
-      } catch {
-        console.error('โหลดข้อมูลแดชบอร์ดไม่สำเร็จ');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
-  }, []);
-
-  const handleAcknowledge = async (id: number) => {
+  const appointmentResource = useDashboardResource(appointmentService.getPsychologistAppointments);
+  const patientResource = useDashboardResource(patientService.getMyPatients);
+  const reportResource = useDashboardResource(reportService.getMyReports);
+  const scheduleResource = useDashboardResource(loadCurrentWeek);
+  const alertResource = useDashboardResource(complaintService.getMyAiAlerts);
+  const appointments = appointmentResource.data ?? [];
+  const patients = patientResource.data ?? [];
+  const reports = reportResource.data ?? [];
+  const thisWeek = scheduleResource.data;
+  const aiAlerts = alertResource.data ?? [];
+  const [showReports, setShowReports] = useState(false);
+  const [pendingActions, setPendingActions] = useState<string[]>([]);
+  const [actionError, setActionError] = useState<ReturnType<typeof dashboardError> | null>(null);
+  const [actionNotice, setActionNotice] = useState('');
+  const busyActions = useRef(new Set<string>());
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const acknowledge = async (kind: 'report' | 'ai', id: number) => {
+    const key = kind + ':' + id;
+    if (busyActions.current.has(key)) return;
+    busyActions.current.add(key);
+    setPendingActions([...busyActions.current]);
+    setActionError(null); setActionNotice('');
     try {
-      await reportService.acknowledgeReport(id);
-      setReports(prev => prev.map(r => (r.id === id ? { ...r, acknowledged_at: dayjs().toISOString() } : r)));
-    } catch {
-      // ปิดไม่สำเร็จ ไม่ต้องรบกวนผู้ใช้ — แจ้งเตือนจะกลับมาแสดงใหม่ตอนโหลดหน้าครั้งถัดไป
+      if (kind === 'report') await reportService.acknowledgeReport(id);
+      else await complaintService.acknowledgeAiAlert(id);
+      if (!mounted.current) return;
+      if (kind === 'report') reportResource.updateData(items => items.map(r => r.id === id ? { ...r, acknowledged_at: dayjs().toISOString() } : r));
+      else alertResource.updateData(items => items.filter(a => a.id !== id));
+      setActionNotice('บันทึกการรับทราบแล้ว');
+    } catch (error) {
+      if (mounted.current) setActionError(dashboardError(error));
+    } finally {
+      busyActions.current.delete(key);
+      if (mounted.current) setPendingActions([...busyActions.current]);
     }
   };
-
-  const handleAcknowledgeAiAlert = async (id: number) => {
-    try {
-      await complaintService.acknowledgeAiAlert(id);
-      setAiAlerts(prev => prev.filter(a => a.id !== id));
-    } catch {
-      // ปิดไม่สำเร็จ ไม่ต้องรบกวนผู้ใช้ — แจ้งเตือนจะกลับมาแสดงใหม่ตอนโหลดหน้าครั้งถัดไป
-    }
-  };
-
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '80px 0' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
 
   const today = dayjs().format('YYYY-MM-DD');
 
   const pendingAppts = appointments.filter(a => a.status === 'pending');
   const todayAppts = appointments
     .filter(a => a.status === 'approved' && dayjs(a.appointment_date).format('YYYY-MM-DD') === today)
-    .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time));
+    .sort((a, b) => (a.appointment_time ?? '').localeCompare(b.appointment_time ?? ''));
   const upcomingAppts = appointments
     .filter(a => ['pending', 'approved'].includes(a.status) && !dayjs(a.appointment_date).isBefore(dayjs(), 'day'))
-    .sort((a, b) => dayjs(a.appointment_date).diff(dayjs(b.appointment_date)) || a.appointment_time.localeCompare(b.appointment_time))
+    .sort((a, b) => dayjs(a.appointment_date).diff(dayjs(b.appointment_date)) || (a.appointment_time ?? '').localeCompare(b.appointment_time ?? ''))
     .slice(0, 5);
 
   const unreadReports = reports.filter(r => !r.acknowledged_at);
@@ -126,7 +104,13 @@ const PsyDashboard: React.FC = () => {
     .slice(0, 5);
 
   return (
-    <div>
+    <div className="dashboard-content">
+      {actionError && <Alert type="error" showIcon title="บันทึกการรับทราบไม่สำเร็จ"
+        description={<>{actionError.message}{actionError.retryable && <div>หากยังไม่แน่ใจว่าบันทึกสำเร็จหรือไม่ ให้โหลดหน้าใหม่เพื่อตรวจสอบสถานะก่อนกดรับทราบอีกครั้ง</div>}</>} action={actionError.signIn
+          ? <Button onClick={() => { auth?.logout(); navigate('/login'); }}>เข้าสู่ระบบอีกครั้ง</Button>
+          : undefined} style={{ marginBottom: 16 }} />}
+      <div role="status" aria-live="polite">{actionNotice}</div>
+      <DashboardSection label="แจ้งเตือนผู้ป่วย" resource={alertResource}>
       {aiAlerts.length > 0 && (
         <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
           {aiAlerts.map(a => (
@@ -137,7 +121,7 @@ const PsyDashboard: React.FC = () => {
               message={`⚠️ ผู้ป่วย ${a.first_name} ${a.last_name} มีความเสี่ยงจากการสนทนากับ AI เมื่อ ${dayjs(a.created_at).format('DD/MM/YYYY HH:mm')} กรุณาติดต่อด่วน`}
               description={a.detail}
               action={
-                <Button size="small" danger onClick={() => handleAcknowledgeAiAlert(a.id)}>
+                <Button size="small" danger className="dashboard-action" loading={pendingActions.includes('ai:' + a.id)} onClick={() => acknowledge('ai', a.id)}>
                   รับทราบ
                 </Button>
               }
@@ -146,6 +130,8 @@ const PsyDashboard: React.FC = () => {
         </Space>
       )}
 
+      </DashboardSection>
+      <DashboardSection label="รายงานที่ได้รับ" resource={reportResource}>
       {unreadReports.length > 0 && (
         <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
           {unreadReports.map(r => (
@@ -153,74 +139,89 @@ const PsyDashboard: React.FC = () => {
               key={r.id}
               type={r.penalty_type === 'warning_1' || r.penalty_type === 'warning_2' ? 'warning' : 'error'}
               showIcon
-              closable
-              onClose={() => handleAcknowledge(r.id)}
+              action={<Button className="dashboard-action" loading={pendingActions.includes('report:' + r.id)} onClick={() => acknowledge('report', r.id)}>รับทราบ</Button>}
               message={`คุณได้รับรายงาน ครั้งที่ ${r.report_count} เนื่องจาก ${r.summary} บทลงโทษ: ${penaltyLabel[r.penalty_type || ''] || '-'}`}
             />
           ))}
         </Space>
       )}
 
-      <Title level={2} style={{ marginBottom: 4 }}>
+      </DashboardSection>
+      <Title level={2} className="app-page-title" style={{ marginBottom: 4 }}>
         สวัสดี, {auth?.user?.first_name || auth?.user?.username} 👋
       </Title>
       <Text type="secondary">วันนี้ {dayjs().format('DD/MM/YYYY')}</Text>
 
       <Row gutter={[16, 16]} style={{ marginTop: 24, marginBottom: 24 }}>
         <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate('/psy-appointment')}>
-            <Statistic
+<Card>
+            <DashboardSection label="ข้อมูลสรุป" resource={appointmentResource}><Link className="dashboard-card-link" to="/appointment"><Statistic
               title="รอการอนุมัติ"
               value={pendingAppts.length}
               prefix={<ExclamationCircleOutlined />}
               valueStyle={{ color: pendingAppts.length ? '#faad14' : '#52c41a' }}
-            />
+            /></Link></DashboardSection>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate('/psy-appointment')}>
-            <Statistic
+<Card>
+            <DashboardSection label="ข้อมูลสรุป" resource={appointmentResource}><Link className="dashboard-card-link" to="/appointment"><Statistic
               title="นัดหมายวันนี้"
               value={todayAppts.length}
               prefix={<CalendarOutlined />}
               valueStyle={{ color: '#1677ff' }}
-            />
+            /></Link></DashboardSection>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate('/patients')}>
-            <Statistic
+<Card>
+            <DashboardSection label="ข้อมูลสรุป" resource={patientResource}><Link className="dashboard-card-link" to="/patients"><Statistic
               title="ผู้ป่วยในความดูแล"
               value={patients.length}
               prefix={<TeamOutlined />}
               valueStyle={{ color: '#722ed1' }}
-            />
+            /></Link></DashboardSection>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate('/report')}>
-            <Statistic
+          <Card>
+            <Button className="dashboard-action" onClick={() => setShowReports(!showReports)} aria-expanded={showReports} aria-controls="my-reports">ดูรายงานที่ได้รับ</Button>
+            <DashboardSection label="ข้อมูลสรุป" resource={reportResource}><Statistic
               title="รายงานที่ได้รับ"
               value={reports.length}
               prefix={<FileTextOutlined />}
               valueStyle={{ color: reports.length ? '#ff4d4f' : '#52c41a' }}
-            />
+            /></DashboardSection>
           </Card>
         </Col>
       </Row>
 
+      {showReports && <Card id="my-reports" title="รายงานที่ได้รับ" style={{ marginBottom: 24 }}>
+        <DashboardSection label="รายงานที่ได้รับ" resource={reportResource}>
+          <List dataSource={reports} pagination={{ pageSize: 5 }} locale={{ emptyText: "ยังไม่มีรายงานที่ได้รับ" }}
+            renderItem={r => <List.Item>
+              <List.Item.Meta title={"รายงานครั้งที่ " + r.report_count}
+                description={<><div>{r.summary}</div><div>{dayjs(r.created_at).format("DD/MM/YYYY HH:mm")}</div>
+                  <div>บทลงโทษ: {penaltyLabel[r.penalty_type || ""] || "ไม่มี"}</div></>} />
+              {r.acknowledged_at ? <Text type="secondary">รับทราบแล้ว</Text>
+                : <Button className="dashboard-action" loading={pendingActions.includes("report:" + r.id)}
+                    onClick={() => acknowledge("report", r.id)}>รับทราบ</Button>}
+            </List.Item>} />
+        </DashboardSection>
+      </Card>}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={14}>
           <Card
             title="นัดหมายที่จะถึง"
             extra={
-              <Button type="link" onClick={() => navigate('/psy-appointment')}>
+              <Button type="link" onClick={() => navigate('/appointment')}>
                 จัดการนัดหมาย <RightOutlined />
               </Button>
             }
             style={{ marginBottom: 16 }}
           >
-            {upcomingAppts.length === 0 ? (
+            <DashboardSection label="นัดหมาย" resource={appointmentResource}>
+{upcomingAppts.length === 0 ? (
               <Empty description="ไม่มีนัดหมายที่จะถึง" />
             ) : (
               <List
@@ -243,6 +244,7 @@ const PsyDashboard: React.FC = () => {
                 )}
               />
             )}
+</DashboardSection>
           </Card>
 
           <Card
@@ -253,7 +255,8 @@ const PsyDashboard: React.FC = () => {
               </Button>
             }
           >
-            {todaySlots.length === 0 ? (
+            <DashboardSection label="ตารางงาน" resource={scheduleResource}>
+{todaySlots.length === 0 ? (
               <Empty description="วันนี้ไม่มีตารางงาน" />
             ) : (
               <List
@@ -269,6 +272,7 @@ const PsyDashboard: React.FC = () => {
                 )}
               />
             )}
+</DashboardSection>
           </Card>
         </Col>
 
@@ -281,7 +285,8 @@ const PsyDashboard: React.FC = () => {
               </Button>
             }
           >
-            {recentPatients.length === 0 ? (
+            <DashboardSection label="ผู้ป่วย" resource={patientResource}>
+{recentPatients.length === 0 ? (
               <Empty description="ยังไม่มีผู้ป่วยในความดูแล" />
             ) : (
               <List
@@ -300,6 +305,7 @@ const PsyDashboard: React.FC = () => {
                 )}
               />
             )}
+</DashboardSection>
           </Card>
         </Col>
       </Row>

@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, Typography, Progress, List, Tag, Button, Empty, Spin, Alert } from 'antd';
+import React from 'react';
+import { Card, Row, Col, Statistic, Typography, Progress, List, Tag, Button, Empty, Alert } from 'antd';
 import {
   UserOutlined, TeamOutlined, SafetyCertificateOutlined, MedicineBoxOutlined,
   CalendarOutlined, FileTextOutlined, RightOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { adminService } from '../services/adminService';
-import type { AdminStats } from '../services/adminService';
 
+import { useDashboardResource } from '../hooks/useDashboardResource';
+import { DashboardSection } from '../components/DashboardSection';
 const { Title, Text } = Typography;
 
 const complaintTypeLabel: Record<string, string> = {
@@ -58,42 +59,23 @@ const reportStatusConfig: Record<string, { color: string; text: string }> = {
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const data = await adminService.getStats();
-        setStats(data);
-      } catch {
-        console.error('โหลดข้อมูลไม่สำเร็จ');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
-  }, []);
-
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '80px 0' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (!stats) {
-    return <Empty description="โหลดข้อมูลแดชบอร์ดไม่สำเร็จ" />;
-  }
+  const resource = useDashboardResource(adminService.getStats);
+  const stats = resource.data;
+  if (!resource.ready || !stats) return (
+    <div className="dashboard-content"><Title level={2} className="app-page-title">ภาพรวมระบบ</Title>
+      <DashboardSection label="ภาพรวมระบบ" resource={resource}>
+        <Empty description="ไม่พบข้อมูลภาพรวมระบบ"><Button onClick={resource.reload}>ลองโหลดอีกครั้ง</Button></Empty>
+      </DashboardSection>
+    </div>
+  );
 
   const pendingComplaintsTotal = stats.complaints.by_status.pending;
   const pendingComplaintTypes = Object.entries(stats.complaints.pending_by_type).filter(([, cnt]) => cnt > 0);
   const needsAttention = pendingComplaintsTotal > 0 || stats.reports.psychologist_pending > 0;
 
   return (
-    <div>
-      <Title level={2} style={{ marginBottom: 4 }}>ภาพรวมระบบ</Title>
+    <div className="dashboard-content">
+      <Title level={2} className="app-page-title" style={{ marginBottom: 4 }}>ภาพรวมระบบ</Title>
       <Text type="secondary">วันนี้ {dayjs().format('DD/MM/YYYY')}</Text>
 
       {needsAttention && (
@@ -115,17 +97,17 @@ const AdminDashboard: React.FC = () => {
       {/* สถิติผู้ใช้งาน + โรงพยาบาล */}
       <Row gutter={[16, 16]} style={{ marginTop: 16, marginBottom: 16 }}>
         <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate('/users')}>
+<Link className="dashboard-card-link" to="/users"><Card hoverable>
             <Statistic
               title="ผู้ใช้งานทั่วไป"
               value={stats.users.total_users}
               prefix={<UserOutlined />}
               valueStyle={{ color: '#1677ff' }}
             />
-          </Card>
+          </Card></Link>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate('/users')}>
+<Link className="dashboard-card-link" to="/users"><Card hoverable>
             <Statistic
               title="นักจิตวิทยา"
               value={stats.users.total_psychologists}
@@ -139,20 +121,20 @@ const AdminDashboard: React.FC = () => {
                 ) : undefined
               }
             />
-          </Card>
+          </Card></Link>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate('/users')}>
+<Link className="dashboard-card-link" to="/users"><Card hoverable>
             <Statistic
               title="ผู้ดูแลระบบ"
               value={stats.users.total_admins}
               prefix={<SafetyCertificateOutlined />}
               valueStyle={{ color: '#722ed1' }}
             />
-          </Card>
+          </Card></Link>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate('/hospitals')}>
+<Link className="dashboard-card-link" to="/hospitals"><Card hoverable>
             <Statistic
               title="โรงพยาบาล/คลินิก"
               value={stats.hospitals.total}
@@ -160,7 +142,7 @@ const AdminDashboard: React.FC = () => {
               valueStyle={{ color: '#13c2c2' }}
               suffix={<span style={{ fontSize: 13 }}>({stats.hospitals.active} เปิดใช้งาน)</span>}
             />
-          </Card>
+          </Card></Link>
         </Col>
       </Row>
 

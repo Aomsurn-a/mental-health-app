@@ -8,6 +8,7 @@ import { AuthContext } from '../context/AuthContext';
 import type { ChatPartner, ChatMessage } from '../services/chatService';
 import type { AiChatMessage } from '../services/aiChatService';
 import { useSearchParams } from 'react-router-dom';
+import { Virtuoso } from 'react-virtuoso';
 
 const { Text, Title } = Typography;
 
@@ -21,7 +22,6 @@ const Chat: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<any>(null);
   const lastIdRef = useRef<number>(0);
 
@@ -31,7 +31,6 @@ const Chat: React.FC = () => {
   const [aiLoaded, setAiLoaded] = useState(false);
   const [aiInputMessage, setAiInputMessage] = useState('');
   const [aiSending, setAiSending] = useState(false);
-  const aiMessagesEndRef = useRef<HTMLDivElement>(null);
 
   // โหลดรายชื่อที่คุยด้วยได้
   useEffect(() => {
@@ -104,15 +103,6 @@ const Chat: React.FC = () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, []);
-
-  // Scroll ลงล่างสุดเมื่อมีข้อความใหม่
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  useEffect(() => {
-    aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [aiMessages]);
 
   // ส่งข้อความ
   const handleSend = async () => {
@@ -197,16 +187,17 @@ const Chat: React.FC = () => {
   );
 
   return (
-    <div>
-      <Title level={2}>แชท</Title>
-      <Row gutter={16} wrap={false} style={{ height: 'calc(100vh - 200px)' }}>
+    <div className="chat-page">
+      <Title level={2} className="app-page-title">แชท</Title>
+      <div className="chat-layout">
 
         {/* รายชื่อ */}
-        <Col span={8}>
+        <div className="chat-list-column">
           <Card
+            className="chat-list-panel"
             title="รายชื่อ"
-            style={{ height: '100%', overflow: 'auto' }}
-            bodyStyle={{ padding: 0 }}
+            style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: 0 }}
           >
             {chatList.length === 0 ? (
               <div style={{ padding: 24, textAlign: 'center' }}>
@@ -217,23 +208,28 @@ const Chat: React.FC = () => {
                 dataSource={chatList}
                 renderItem={partner => (
                   <List.Item
-                    onClick={() => handleSelectPartner(partner)}
-                    style={{
-                      cursor: 'pointer',
-                      padding: '12px 16px',
-                      background: selectedPartner?.id === partner.id ? '#e6f4ff' : 'white',
-                      borderLeft: selectedPartner?.id === partner.id ? '3px solid #1677ff' : '3px solid transparent',
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={selectedPartner?.id === partner.id}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleSelectPartner(partner);
+                      }
                     }}
+                    className={`chat-partner-item${selectedPartner?.id === partner.id ? ' chat-partner-selected' : ''}`}
+                    onClick={() => handleSelectPartner(partner)}
                   >
                     <List.Item.Meta
+                      className="chat-partner-meta"
                       avatar={
                         <Badge count={partner.unread_count} size="small">
-                          <Avatar icon={<UserOutlined />} style={{ background: '#1677ff' }} />
+                          <Avatar icon={<UserOutlined />} style={{ background: 'var(--role-primary)' }} />
                         </Badge>
                       }
                       title={<Text strong>{partner.first_name} {partner.last_name}</Text>}
                       description={
-                        <Text type="secondary" ellipsis style={{ maxWidth: 150 }}>
+                        <Text type="secondary" ellipsis>
                           {partner.last_message || 'ยังไม่มีข้อความ'}
                         </Text>
                       }
@@ -243,11 +239,12 @@ const Chat: React.FC = () => {
               />
             )}
           </Card>
-        </Col>
+        </div>
 
         {/* กล่องแชท */}
-        <Col span={16}>
+        <div className="chat-conversation-column">
           <Card
+            className="chat-conversation-panel"
             title={
               !selectedPartner
                 ? 'เลือกคนที่ต้องการคุย'
@@ -258,6 +255,7 @@ const Chat: React.FC = () => {
             extra={
               selectedPartner && (
                 <Segmented
+                  className="chat-mode-switch"
                   value={mode}
                   onChange={(val) => (val === 'ai' ? handleSwitchToAi() : setMode('human'))}
                   options={[
@@ -281,81 +279,65 @@ const Chat: React.FC = () => {
                   type="warning"
                   showIcon
                   banner
-                  message="⚠️ นี่คือ AI ผู้ช่วยเบื้องต้น ไม่ใช่นักจิตวิทยาจริง คำแนะนำนี้ไม่สามารถทดแทนการรักษาทางการแพทย์ได้ หากมีเหตุฉุกเฉิน โทร 1323 (สายด่วนสุขภาพจิต) หรือ 1669"
+                  className="chat-ai-notice"
+                  message="นี่คือ AI ผู้ช่วยเบื้องต้น ไม่ใช่นักจิตวิทยาจริง คำแนะนำนี้ไม่สามารถทดแทนการรักษาทางการแพทย์ได้ หากมีเหตุฉุกเฉิน โทร 1323 (สายด่วนสุขภาพจิต) หรือ 1669"
                   style={{ borderRadius: 0 }}
                 />
 
                 {/* ข้อความ AI */}
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, background: '#f5f5f5' }}>
-                  {aiMessages.length === 0 && (
-                    <div style={{ textAlign: 'center', marginTop: 40 }}>
-                      <Text type="secondary">เริ่มพูดคุยกับ AI ได้เลย</Text>
-                    </div>
-                  )}
-                  {aiMessages.map(msg => {
-                    if (msg.role === 'system') {
-                      return (
-                        <div key={msg.id} style={{ textAlign: 'center', margin: '8px 0' }}>
-                          <Text type="secondary" style={{ fontSize: 12 }}>🔔 {msg.content}</Text>
-                        </div>
-                      );
-                    }
-                    const isMe = msg.role === 'user';
-                    return (
-                      <div key={msg.id} style={{
-                        display: 'flex',
-                        justifyContent: isMe ? 'flex-end' : 'flex-start',
-                        marginBottom: 12,
-                      }}>
-                        {!isMe && (
-                          <Avatar icon={<RobotOutlined />}
-                            style={{ background: '#722ed1', marginRight: 8, flexShrink: 0 }} />
-                        )}
-                        <div style={{ maxWidth: '65%' }}>
-                          <div style={{
-                            background: isMe ? '#1677ff' : 'white',
-                            color: isMe ? 'white' : 'black',
-                            padding: '8px 12px',
-                            borderRadius: isMe ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                            wordBreak: 'break-word',
-                          }}>
-                            {msg.content}
+                {aiMessages.length === 0 ? (
+                  <div className="chat-empty"><Text type="secondary">เริ่มพูดคุยกับ AI ได้เลย</Text></div>
+                ) : (
+                  <Virtuoso
+                    className="chat-messages"
+                    style={{ flex: 1, minHeight: 0 }}
+                    data={aiMessages}
+                    initialTopMostItemIndex={{ index: aiMessages.length - 1, align: 'end' }}
+                    alignToBottom
+                    followOutput={atBottom => atBottom ? 'smooth' : false}
+                    computeItemKey={(_, item) => item.id}
+                    itemContent={(_, msg) => {
+                      if (msg.role === 'system') {
+                        return (
+                          <div style={{ textAlign: 'center', margin: '8px 0' }}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>{msg.content}</Text>
                           </div>
-                          {'created_at' in msg && (
-                            <Text type="secondary" style={{
-                              fontSize: 11, marginTop: 2, display: 'block',
-                              textAlign: isMe ? 'right' : 'left'
-                            }}>
+                        );
+                      }
+                      const isMe = msg.role === 'user';
+                      return (
+                        <div className={`chat-message-row${isMe ? ' is-mine' : ''}`}>
+                          {!isMe && <Avatar icon={<RobotOutlined />} style={{ background: 'var(--role-primary)', flexShrink: 0 }} />}
+                          <div className="chat-message-content">
+                            <div className={`chat-message-bubble ${isMe ? 'is-mine' : 'is-other'}`}>{msg.content}</div>
+                            <Text type="secondary" style={{ fontSize: 11, marginTop: 2, display: 'block', textAlign: isMe ? 'right' : 'left' }}>
                               {dayjs(msg.created_at).format('HH:mm')}
                             </Text>
-                          )}
+                          </div>
+                          {isMe && <Avatar icon={<UserOutlined />} style={{ background: 'var(--role-secondary)', flexShrink: 0 }} />}
                         </div>
-                        {isMe && (
-                          <Avatar icon={<UserOutlined />}
-                            style={{ background: '#52c41a', marginLeft: 8, flexShrink: 0 }} />
-                        )}
-                      </div>
-                    );
-                  })}
-                  <div ref={aiMessagesEndRef} />
-                </div>
+                      );
+                    }}
+                  />
+                )}
 
                 {/* กล่องพิมพ์ AI */}
-                <div style={{ padding: 12, background: 'white', borderTop: '1px solid #f0f0f0' }}>
+                <div className="chat-composer">
                   <Row gutter={8} align="middle">
                     <Col flex={1}>
                       <Input.TextArea
                         value={aiInputMessage}
+                        aria-label="ข้อความถึง AI"
                         onChange={e => setAiInputMessage(e.target.value)}
                         onKeyPress={handleAiKeyPress}
                         placeholder="พิมพ์ข้อความถึง AI... (Enter เพื่อส่ง)"
                         autoSize={{ minRows: 1, maxRows: 4 }}
-                        style={{ borderRadius: 20 }}
                       />
                     </Col>
                     <Col>
                       <Button
+                        className="chat-send-button"
+                        aria-label="ส่งข้อความถึง AI"
                         type="primary"
                         shape="circle"
                         icon={<SendOutlined />}
@@ -380,72 +362,57 @@ const Chat: React.FC = () => {
                         คุยกับ AI ระหว่างรอ
                       </Button>
                     }
-                    style={{ margin: 12, borderRadius: 8 }}
+                    className="chat-ai-notice"
                   />
                 )}
 
                 {/* ข้อความ */}
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, background: '#f5f5f5' }}>
-                  {messages.length === 0 && (
-                    <div style={{ textAlign: 'center', marginTop: 40 }}>
-                      <Text type="secondary">เริ่มการสนทนาได้เลย</Text>
-                    </div>
-                  )}
-                  {messages.map(msg => {
-                    const isMe = msg.sender_id === auth?.user?.id;
-                    return (
-                      <div key={msg.id} style={{
-                        display: 'flex',
-                        justifyContent: isMe ? 'flex-end' : 'flex-start',
-                        marginBottom: 12,
-                      }}>
-                        {!isMe && (
-                          <Avatar icon={<UserOutlined />}
-                            style={{ background: '#1677ff', marginRight: 8, flexShrink: 0 }} />
-                        )}
-                        <div style={{ maxWidth: '65%' }}>
-                          <div style={{
-                            background: isMe ? '#1677ff' : 'white',
-                            color: isMe ? 'white' : 'black',
-                            padding: '8px 12px',
-                            borderRadius: isMe ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                            wordBreak: 'break-word',
-                          }}>
-                            {msg.message}
+                {messages.length === 0 ? (
+                  <div className="chat-empty"><Text type="secondary">เริ่มการสนทนาได้เลย</Text></div>
+                ) : (
+                  <Virtuoso
+                    className="chat-messages"
+                    style={{ flex: 1, minHeight: 0 }}
+                    data={messages}
+                    initialTopMostItemIndex={{ index: messages.length - 1, align: 'end' }}
+                    alignToBottom
+                    followOutput={atBottom => atBottom ? 'smooth' : false}
+                    computeItemKey={(_, item) => item.id}
+                    itemContent={(_, msg) => {
+                      const isMe = msg.sender_id === auth?.user?.id;
+                      return (
+                        <div className={`chat-message-row${isMe ? ' is-mine' : ''}`}>
+                          {!isMe && <Avatar icon={<UserOutlined />} style={{ background: 'var(--role-primary)', flexShrink: 0 }} />}
+                          <div className="chat-message-content">
+                            <div className={`chat-message-bubble ${isMe ? 'is-mine' : 'is-other'}`}>{msg.message}</div>
+                            <Text type="secondary" style={{ fontSize: 11, marginTop: 2, display: 'block', textAlign: isMe ? 'right' : 'left' }}>
+                              {dayjs(msg.sent_at).format('HH:mm')}
+                            </Text>
                           </div>
-                          <Text type="secondary" style={{
-                            fontSize: 11, marginTop: 2, display: 'block',
-                            textAlign: isMe ? 'right' : 'left'
-                          }}>
-                            {dayjs(msg.sent_at).format('HH:mm')}
-                          </Text>
+                          {isMe && <Avatar icon={<UserOutlined />} style={{ background: 'var(--role-secondary)', flexShrink: 0 }} />}
                         </div>
-                        {isMe && (
-                          <Avatar icon={<UserOutlined />}
-                            style={{ background: '#52c41a', marginLeft: 8, flexShrink: 0 }} />
-                        )}
-                      </div>
-                    );
-                  })}
-                  <div ref={messagesEndRef} />
-                </div>
+                      );
+                    }}
+                  />
+                )}
 
                 {/* กล่องพิมพ์ */}
-                <div style={{ padding: 12, background: 'white', borderTop: '1px solid #f0f0f0' }}>
+                <div className="chat-composer">
                   <Row gutter={8} align="middle">
                     <Col flex={1}>
                       <Input.TextArea
                         value={inputMessage}
+                        aria-label="ข้อความถึงนักจิตวิทยา"
                         onChange={e => setInputMessage(e.target.value)}
                         onKeyPress={handleKeyPress}
                         placeholder="พิมพ์ข้อความ... (Enter เพื่อส่ง)"
                         autoSize={{ minRows: 1, maxRows: 4 }}
-                        style={{ borderRadius: 20 }}
                       />
                     </Col>
                     <Col>
                       <Button
+                        className="chat-send-button"
+                        aria-label="ส่งข้อความถึงนักจิตวิทยา"
                         type="primary"
                         shape="circle"
                         icon={<SendOutlined />}
@@ -459,8 +426,8 @@ const Chat: React.FC = () => {
               </>
             )}
           </Card>
-        </Col>
-      </Row>
+        </div>
+      </div>
     </div>
   );
 };

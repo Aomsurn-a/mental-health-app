@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { Form, Input, Button, Card, Typography, Alert, Tabs } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, MailOutlined, HeartOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
@@ -42,17 +42,13 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#f0f2f5'
-    }}>
-      <Card style={{ width: 420, borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.1)' }}>
-        <Title level={3} style={{ textAlign: 'center', marginBottom: 24 }}>
-          🧠 ระบบดูแลสุขภาพจิต
-        </Title>
+    <main className="login-page">
+      <Card className="login-card">
+        <div className="login-brand">
+          <span className="login-brand-icon"><HeartOutlined aria-hidden="true" /></span>
+          <Title level={1}>ระบบดูแลสุขภาพจิต</Title>
+          <p>พื้นที่สำหรับดูแลสุขภาพใจของคุณ</p>
+        </div>
 
         {auth?.error && (
           <Alert
@@ -70,20 +66,20 @@ const Login: React.FC = () => {
             key: 'login',
             label: 'เข้าสู่ระบบ',
             children: (
-              <Form layout="vertical" onFinish={handleLogin}>
+              <Form name="login" layout="vertical" onFinish={handleLogin} scrollToFirstError>
                 <Form.Item name="email" label="อีเมล"
                   rules={[
                     { required: true, message: 'กรุณากรอกอีเมล' },
                     { type: 'email', message: 'รูปแบบอีเมลไม่ถูกต้อง' }
                   ]}>
-                  <Input prefix={<MailOutlined />} placeholder="example@email.com" size="large" />
+                  <Input prefix={<MailOutlined />} autoComplete="email" inputMode="email" placeholder="example@email.com" />
                 </Form.Item>
                 <Form.Item name="password" label="รหัสผ่าน"
                   rules={[{ required: true, message: 'กรุณากรอกรหัสผ่าน' }]}>
-                  <Input.Password prefix={<LockOutlined />} placeholder="รหัสผ่าน" size="large" />
+                  <Input.Password prefix={<LockOutlined />} autoComplete="current-password" placeholder="รหัสผ่าน" />
                 </Form.Item>
                 <Form.Item>
-                  <Button type="primary" htmlType="submit" block size="large" loading={loading}>
+                  <Button type="primary" htmlType="submit" block loading={loading}>
                     เข้าสู่ระบบ
                   </Button>
                 </Form.Item>
@@ -94,33 +90,33 @@ const Login: React.FC = () => {
             key: 'register',
             label: 'สมัครสมาชิก',
             children: (
-              <Form layout="vertical" onFinish={handleRegister}>
+              <Form name="register" className="register-form" layout="vertical" onFinish={handleRegister} scrollToFirstError>
                 <Form.Item name="username" label="ชื่อผู้ใช้"
                   rules={[{ required: true, message: 'กรุณากรอกชื่อผู้ใช้' }]}>
-                  <Input prefix={<UserOutlined />} placeholder="ชื่อผู้ใช้" size="large" />
+                  <Input prefix={<UserOutlined />} autoComplete="username" placeholder="ชื่อผู้ใช้" />
                 </Form.Item>
-                <Form.Item name="first_name" label="ชื่อจริง">
-                  <Input placeholder="ชื่อจริง" size="large" />
+                <Form.Item className="register-name" name="first_name" label="ชื่อจริง">
+                  <Input autoComplete="given-name" placeholder="ชื่อจริง" />
                 </Form.Item>
-                <Form.Item name="last_name" label="นามสกุล">
-                  <Input placeholder="นามสกุล" size="large" />
+                <Form.Item className="register-name" name="last_name" label="นามสกุล">
+                  <Input autoComplete="family-name" placeholder="นามสกุล" />
                 </Form.Item>
                 <Form.Item name="email" label="อีเมล"
                   rules={[
                     { required: true, message: 'กรุณากรอกอีเมล' },
                     { type: 'email', message: 'รูปแบบอีเมลไม่ถูกต้อง' }
                   ]}>
-                  <Input prefix={<MailOutlined />} placeholder="example@email.com" size="large" />
+                  <Input prefix={<MailOutlined />} autoComplete="email" inputMode="email" placeholder="example@email.com" />
                 </Form.Item>
                 <Form.Item name="password" label="รหัสผ่าน"
                   rules={[
                     { required: true, message: 'กรุณากรอกรหัสผ่าน' },
                     { min: 6, message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' }
                   ]}>
-                  <Input.Password prefix={<LockOutlined />} placeholder="รหัสผ่าน" size="large" />
+                  <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder="รหัสผ่าน" />
                 </Form.Item>
                 <Form.Item>
-                  <Button type="primary" htmlType="submit" block size="large" loading={loading}>
+                  <Button type="primary" htmlType="submit" block loading={loading}>
                     สมัครสมาชิก
                   </Button>
                 </Form.Item>
@@ -129,7 +125,7 @@ const Login: React.FC = () => {
           }
         ]} />
       </Card>
-    </div>
+    </main>
   );
 };
 

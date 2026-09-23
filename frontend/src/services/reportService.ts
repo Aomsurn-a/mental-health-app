@@ -92,7 +92,7 @@ export const reportService = {
   },
 
   acknowledgeReport: async (id: number): Promise<void> => {
-    await api.put(`/report/my-reports/${id}/acknowledge`);
+    await api.put(`/report/my-reports/${id}/acknowledge`, undefined, { timeout: 20000 });
   },
 
   downloadReport: async (id: number): Promise<void> => {

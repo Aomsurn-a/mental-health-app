@@ -5,6 +5,7 @@ import {
   HomeOutlined,
   FormOutlined,
   SmileOutlined,
+  HistoryOutlined,
   CalendarOutlined,
   MessageOutlined,
   FileTextOutlined,
@@ -15,6 +16,7 @@ import {
   MenuUnfoldOutlined,
   BankOutlined,
   ClockCircleOutlined,
+  HeartOutlined,
 } from '@ant-design/icons';
 import { AuthContext } from '../context/AuthContext';
 
@@ -28,7 +30,7 @@ const menuItems = {
     { key: '/assessment', icon: <FormOutlined />, label: 'แบบประเมินสุขภาพจิต' },
     { key: '/assessment-history', icon: <FileTextOutlined />, label: 'ประวัติการประเมิน' },
     { key: '/mood', icon: <SmileOutlined />, label: 'Mood Tracking' },
-    { key: '/mood-stats', icon: <SmileOutlined />, label: 'สถิติ Mood' },
+    { key: '/mood-stats', icon: <HistoryOutlined />, label: 'สถิติ Mood' },
     { key: '/psychologists', icon: <TeamOutlined />, label: 'นักจิตวิทยา' },
     { key: '/appointment', icon: <CalendarOutlined />, label: 'นัดหมาย' },
     { key: '/chat', icon: <MessageOutlined />, label: 'แชท' },
@@ -80,63 +82,59 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 ];
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout className={`app-frame role-${role}`} style={{ minHeight: '100vh' }}>
       {/* Sidebar */}
       <Sider
         collapsible
+        breakpoint="lg"
+        collapsedWidth={0}
+        trigger={null}
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        style={{ background: '#001529' }}
+        style={{ background: 'var(--surface)' }}
         width={220}
       >
         {/* Logo */}
-        <div style={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontSize: collapsed ? 20 : 16,
-          fontWeight: 'bold',
-          borderBottom: '1px solid rgba(255,255,255,0.1)'
-        }}>
-          {collapsed ? '🧠' : '🧠 สุขภาพจิต'}
+        <div className="app-brand">
+          <HeartOutlined className="app-brand-icon" aria-hidden="true" />
+          {!collapsed && <span>สุขภาพใจ</span>}
         </div>
 
         {/* Menu */}
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menus}
           onClick={({ key }) => navigate(key)}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 8, paddingInline: 8 }}
         />
       </Sider>
 
       <Layout>
         {/* Header */}
         <Header style={{
-          background: '#fff',
-          padding: '0 24px',
+          background: 'var(--surface)',
+          padding: '0 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+          boxShadow: '0 2px 10px rgba(23,43,58,0.04)'
         }}>
           {/* ปุ่มย่อ/ขยาย Sidebar */}
           <Button
             type="text"
+            aria-label={collapsed ? 'ขยายเมนูนำทาง' : 'ย่อเมนูนำทาง'}
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setCollapsed(!collapsed)}
           />
 
           {/* User Info */}
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <Avatar icon={<UserOutlined />} style={{ background: '#1677ff' }} />
+            <Button type="text" className="app-user-trigger" aria-label="เมนูบัญชีผู้ใช้">
+              <Avatar icon={<UserOutlined />} style={{ background: 'var(--role-primary)' }} />
               <Text>{auth?.user?.first_name || auth?.user?.username}</Text>
-            </div>
+            </Button>
           </Dropdown>
         </Header>
 
@@ -144,8 +142,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <Content style={{
           margin: 24,
           padding: 24,
-          background: '#fff',
-          borderRadius: 8,
+          background: 'var(--surface)',
+          borderRadius: 14,
           minHeight: 'calc(100vh - 112px)'
         }}>
           {children}

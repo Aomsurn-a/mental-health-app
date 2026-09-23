@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Radio, Typography, Steps, Result, Tag, Spin, Row, Col, Alert, Avatar, Empty } from 'antd';
+import { Card, Button, Radio, Typography, Progress, Result, Tag, Spin, Row, Col, Alert, Avatar, Empty } from 'antd';
 import { UserOutlined, CalendarOutlined, MessageOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { assessmentService } from '../services/assessmentService';
@@ -141,14 +141,14 @@ const Assessment: React.FC = () => {
   // หน้ารายการชุดประเมิน
   if (pageState === 'list') {
     return (
-      <div>
-        <Title level={2}>แบบประเมินสุขภาพจิต</Title>
+      <div className="assessment-page">
+        <Title level={2} className="app-page-title">แบบประเมินสุขภาพจิต</Title>
         <Paragraph type="secondary">เลือกแบบประเมินที่ต้องการด้านล่าง</Paragraph>
         {loading ? <Spin /> : (
           <Row gutter={[16, 16]}>
             {sets.map(set => (
               <Col xs={24} sm={12} lg={8} key={set.id}>
-                <Card
+                <Card className="assessment-catalog"
                   title={set.name}
                   hoverable
                   actions={[
@@ -176,25 +176,20 @@ const Assessment: React.FC = () => {
     const allAnswered = currentSet.questions.every(q => answers[q.id] !== undefined);
 
     return (
-      <div style={{ maxWidth: 700, margin: '0 auto' }}>
+      <div className="assessment-page assessment-flow">
         <Title level={3}>{currentSet.name}</Title>
 
-        <Steps
-          current={currentQuestion}
-          items={currentSet.questions.map((_, i) => ({
-            title: `ข้อ ${i + 1}`,
-            status: answers[currentSet.questions[i].id] !== undefined ? 'finish' : i === currentQuestion ? 'process' : 'wait'
-          }))}
-          style={{ marginBottom: 32 }}
-          size="small"
-        />
+        <div className="assessment-progress">
+          <Text type="secondary">ตอบแล้ว {Object.keys(answers).length} จาก {totalQuestions} ข้อ</Text>
+          <Progress percent={Math.round(Object.keys(answers).length / totalQuestions * 100)} showInfo={false} strokeColor="var(--role-primary)" />
+        </div>
 
         <Card>
           <Title level={4}>
             ข้อ {currentQuestion + 1}/{totalQuestions}: {question.question}
           </Title>
 
-          <Radio.Group
+          <Radio.Group className="assessment-options"
             onChange={e => handleAnswer(question.id, e.target.value)}
             value={answers[question.id]}
             style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}
@@ -206,7 +201,7 @@ const Assessment: React.FC = () => {
             ))}
           </Radio.Group>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
+          <div className="assessment-actions">
             <Button
               onClick={() => setCurrentQuestion(prev => prev - 1)}
               disabled={currentQuestion === 0}
@@ -244,7 +239,7 @@ const Assessment: React.FC = () => {
     const rec = recommendationConfig[result.risk_level];
 
     return (
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <div className="assessment-page assessment-result">
         <Result
           status={result.risk_level === 'low' ? 'success' : result.risk_level === 'medium' ? 'warning' : 'error'}
           title={
@@ -299,8 +294,8 @@ const Assessment: React.FC = () => {
                   <Col xs={24} sm={12} key={psy.id}>
                     <Card size="small">
                       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                        <Avatar size={40} icon={<UserOutlined />} style={{ background: '#1677ff', flexShrink: 0 }} />
-                        <div style={{ flex: 1 }}>
+                        <Avatar size={40} icon={<UserOutlined />} style={{ background: 'var(--role-primary)', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <Text strong>{psy.first_name} {psy.last_name}</Text>
                           <br />
                           <Tag color="blue" style={{ marginTop: 4 }}>{psy.specialty || 'ไม่ระบุความเชี่ยวชาญ'}</Tag>
@@ -309,8 +304,9 @@ const Assessment: React.FC = () => {
                               {psy.hospital_name || 'ไม่ระบุโรงพยาบาล/คลินิก'}
                             </Text>
                           </div>
-                          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                             <Button
+                              className="assessment-action"
                               size="small"
                               type="primary"
                               icon={<CalendarOutlined />}
@@ -319,6 +315,7 @@ const Assessment: React.FC = () => {
                               นัดหมาย
                             </Button>
                             <Button
+                              className="assessment-action"
                               size="small"
                               icon={<MessageOutlined />}
                               onClick={() => navigate(`/chat?partner_id=${psy.id}`)}

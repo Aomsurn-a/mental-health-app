@@ -137,11 +137,11 @@ const MoodTracking: React.FC = () => {
   const todayConfig = moodConfig.find(m => m.score === todayEntry?.mood_score);
 
   return (
-    <div>
-      <Title level={2}>Mood Tracking</Title>
+    <div className="mood-page">
+      <Title level={2} className="app-page-title">Mood Tracking</Title>
 
       {/* สรุปวันนี้ */}
-      <Card style={{ marginBottom: 24 }}>
+      <Card className="mood-summary" style={{ marginBottom: 24 }}>
         <Row align="middle" justify="space-between">
           <Col>
             <Text strong>วันนี้ ({dayjs().format('DD/MM/YYYY')})</Text>
@@ -168,7 +168,7 @@ const MoodTracking: React.FC = () => {
       </Card>
 
       {/* ปฏิทิน */}
-      <Card title="ประวัติความรู้สึก">
+      <Card className="mood-calendar" title="ประวัติความรู้สึก">
         <Calendar
           cellRender={dateCellRender}
           onSelect={(value, info) => handleSelectDate(value, info)}
@@ -179,6 +179,7 @@ const MoodTracking: React.FC = () => {
 
       {/* Modal กรอก mood */}
       <Modal
+        className="mood-dialog"
         title={`บันทึกความรู้สึก ${dayjs(selectedDate).format('DD/MM/YYYY')}`}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
@@ -189,10 +190,12 @@ const MoodTracking: React.FC = () => {
         width={600}
       >
         <Title level={5}>วันนี้คุณรู้สึกเป็นยังไงบ้าง?</Title>
-        <Row gutter={8} style={{ marginBottom: 24 }}>
+        <Row className="mood-choice-row" gutter={8}>
           {moodConfig.map(m => (
             <Col key={m.score}>
               <Button
+                className="mood-choice"
+                aria-pressed={moodScore === m.score}
                 style={{
                   borderColor: moodScore === m.score ? m.color : undefined,
                   background: moodScore === m.score ? m.color + '20' : undefined,
@@ -202,7 +205,7 @@ const MoodTracking: React.FC = () => {
                 onClick={() => setMoodScore(m.score)}
               >
                 <div style={{ fontSize: 24 }}>{m.icon}</div>
-                <div style={{ fontSize: 12 }}>{m.label}</div>
+                <div className="mood-choice-label">{m.label}</div>
               </Button>
             </Col>
           ))}
@@ -211,9 +214,9 @@ const MoodTracking: React.FC = () => {
         <Title level={5}>คำถามประจำวัน</Title>
         {dailyQuestions.map(q => (
           <Card key={q.id} size="small" style={{ marginBottom: 8 }}>
-            <Row justify="space-between" align="middle">
+            <Row className="mood-question-row" justify="space-between" align="middle">
               <Col flex={1}><Text>{q.question}</Text></Col>
-              <Col>
+              <Col className="mood-question-answer">
                 <Radio.Group
                   value={answers[q.id]}
                   onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
@@ -228,6 +231,7 @@ const MoodTracking: React.FC = () => {
 
         <Title level={5} style={{ marginTop: 16 }}>บันทึกเพิ่มเติม (ถ้ามี)</Title>
         <TextArea
+          aria-label="บันทึกเพิ่มเติม"
           rows={3}
           placeholder="เขียนสิ่งที่อยากระบาย หรือเหตุการณ์สำคัญของวันนี้..."
           value={note}

@@ -60,6 +60,6 @@ export const complaintService = {
   },
 
   acknowledgeAiAlert: async (id: number): Promise<void> => {
-    await api.patch(`/complaint/ai-alerts/${id}/acknowledge`);
+    await api.patch(`/complaint/ai-alerts/${id}/acknowledge`, undefined, { timeout: 20000 });
   },
 };

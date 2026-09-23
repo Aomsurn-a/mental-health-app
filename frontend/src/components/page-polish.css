@@ -1,0 +1,174 @@
+/* Tight refinements for the five user-facing workflows. */
+.user-dashboard-page,
+.assessment-page,
+.mood-page,
+.appointment-page,
+.chat-page { min-width: 0; }
+
+.user-dashboard-page { width: min(100%, 1440px); margin-inline: auto; }
+.assessment-page:not(.assessment-flow):not(.assessment-result) { width: min(100%, 1160px); margin-inline: auto; }
+.assessment-page.assessment-flow { width: min(100%, 720px); margin-inline: auto; }
+.assessment-page.assessment-result { width: min(100%, 800px); margin-inline: auto; }
+.assessment-page:not(.assessment-flow):not(.assessment-result) > .ant-row { align-items: stretch; }
+.assessment-page:not(.assessment-flow):not(.assessment-result) > .ant-row > .ant-col { display: flex; }
+.assessment-page:not(.assessment-flow):not(.assessment-result) .assessment-catalog { display: flex; flex: 1; flex-direction: column; }
+.assessment-page:not(.assessment-flow):not(.assessment-result) .assessment-catalog .ant-card-body { flex: 1; }
+.mood-page { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.6fr); align-content: start; gap: 24px; width: min(100%, 1200px); margin-inline: auto; }
+.mood-page > .app-page-title { grid-column: 1 / -1; }
+.mood-page .mood-summary { grid-column: 1; align-self: start; margin-bottom: 0 !important; }
+.mood-page .mood-calendar { grid-column: 2; grid-row: 2; min-width: 0; }
+.appointment-page { width: min(100%, 1280px); margin-inline: auto; }
+.chat-page { width: 100%; max-width: none; margin-inline: 0; }
+
+.user-dashboard-page > .app-page-title,
+.assessment-page > .app-page-title,
+.mood-page > .app-page-title,
+.appointment-page .app-page-title,
+.chat-page > .app-page-title { margin-block: 0 8px !important; }
+.user-dashboard-page .user-quick-action { min-height: 72px; height: auto !important; padding: 12px 8px; white-space: normal; }
+.user-dashboard-page .user-quick-action-icon { color: var(--role-primary); font-size: 20px; }
+.user-dashboard-page .user-quick-action-label { font-size: 14px; line-height: 1.4; text-align: center; }
+.user-dashboard-page .dashboard-stat-grid { row-gap: 16px; }
+
+.assessment-page .assessment-options { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.assessment-page .assessment-options .ant-radio-wrapper { min-height: 48px; display: flex; align-items: center; padding: 8px 12px; border: 1px solid var(--role-border); border-radius: 10px; }
+.assessment-page .assessment-options .ant-radio-wrapper:hover { border-color: var(--role-primary); }
+.assessment-page .assessment-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 24px; }
+.assessment-page .assessment-actions .ant-btn,
+.assessment-page .assessment-action { min-height: 44px; height: auto; white-space: normal; }
+.assessment-page .assessment-catalog .ant-card-actions .ant-btn { min-height: 44px; }
+
+.mood-page .mood-summary .ant-row { gap: 16px; }
+.mood-page .mood-choice-row { row-gap: 8px; margin-bottom: 24px; }
+.mood-page .mood-choice { min-width: 64px; min-height: 64px; height: auto; padding: 8px 10px; white-space: normal; }
+.mood-page .mood-choice-label { font-size: 13px; line-height: 1.4; }
+.mood-page .ant-picker-calendar-date { min-height: 64px; }
+.mood-page .ant-picker-calendar-date-content { min-height: 24px; }
+.mood-page .mood-question-row { min-height: 56px; gap: 12px; }
+.mood-page .mood-question-answer { min-width: 128px; }
+.mood-page .mood-question-answer .ant-radio-wrapper { min-height: 44px; display: inline-flex; align-items: center; padding-block: 8px; }
+.mood-page textarea { min-height: 88px; }
+
+.appointment-page .appointment-heading { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.appointment-page .appointment-heading .ant-btn,
+.appointment-page .ant-table .ant-btn { min-height: 44px; height: auto; white-space: normal; }
+.appointment-page .ant-table-cell { overflow-wrap: anywhere; }
+
+.chat-page { display: flex; flex-direction: column; height: calc(100dvh - 164px); min-height: 480px; min-width: 0; }
+.chat-page > .app-page-title { flex: 0 0 auto; }
+.chat-page .chat-layout { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 3fr); gap: 16px; flex: 1 1 0; min-height: 0; min-width: 0; }
+.chat-list-column, .chat-conversation-column { min-width: 0; min-height: 0; }
+.chat-page .chat-list-panel,
+.chat-page .chat-conversation-panel { height: 100%; min-width: 0; overflow: hidden; }
+.chat-page .chat-list-panel { display: flex; flex-direction: column; }
+.chat-page .chat-list-panel .ant-card-head,
+.chat-page .chat-conversation-panel .ant-card-head { flex: 0 0 auto; }
+.chat-page .chat-list-panel .ant-card-body { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.chat-page .chat-conversation-panel .ant-card-body { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; }
+.chat-page .chat-empty { display: flex; flex: 1 1 auto; min-height: 0; align-items: center; justify-content: center; }
+.chat-page .chat-conversation-panel .ant-card-head-wrapper { flex-wrap: wrap; gap: 8px; }
+.chat-page .chat-conversation-panel .ant-card-head-title { min-width: 0; }
+.chat-page .chat-conversation-panel .ant-card-extra { max-width: 100%; margin-inline-start: 0; }
+.chat-page .chat-partner-item { min-height: 64px; padding: 12px 16px; cursor: pointer; }
+.chat-page .chat-partner-selected { background: var(--role-primary-soft); }
+.chat-page .chat-partner-meta { min-width: 0; }
+.chat-page .chat-partner-meta .ant-list-item-meta-content { min-width: 0; }
+.chat-page .chat-messages { flex: 1; min-height: 0; width: 100%; padding: 0; overflow-x: hidden; background: var(--role-bg); overscroll-behavior: contain; }
+.chat-page .chat-message-row { display: flex; align-items: flex-end; gap: 8px; padding: 8px 16px; min-width: 0; width: 100%; box-sizing: border-box; }
+.chat-page .chat-message-row.is-mine { justify-content: flex-end; }
+.chat-page .chat-message-row > .ant-avatar { flex: 0 0 40px; width: 40px; height: 40px; }
+.chat-page .chat-message-content { flex: 0 1 auto; max-width: min(72%, 600px, calc(100% - 48px)); min-width: 0; overflow-wrap: anywhere; }
+.chat-page .chat-message-bubble { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-page .chat-message-bubble { padding: 10px 14px; border-radius: 12px; line-height: 1.55; }
+.chat-page .chat-message-bubble.is-mine { background: var(--role-primary); color: #fff; border-end-end-radius: 4px; }
+.chat-page .chat-message-bubble.is-other { background: #fff; color: var(--role-text); border: 1px solid var(--role-border); border-end-start-radius: 4px; }
+.chat-page .chat-composer { display: flex; flex: 0 0 auto; align-items: flex-end; gap: 8px; padding: 12px; background: #fff; border-top: 1px solid var(--role-border); }
+.chat-page .chat-composer > .ant-row { width: 100%; min-width: 0; margin-inline: 0; }
+.chat-page .chat-composer > .ant-row > .ant-col:first-child { min-width: 0; }
+.chat-page .chat-composer .ant-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.chat-page .chat-composer .ant-input { min-height: 44px !important; max-height: 120px; overflow-y: auto; border-radius: 10px !important; }
+.chat-page .chat-send-button { width: 44px; height: 44px; flex: 0 0 44px; }
+.chat-page .chat-mode-switch { max-width: 100%; overflow-x: auto; }
+.chat-page .chat-mode-switch .ant-segmented-item { min-height: 44px; }
+.chat-page .chat-ai-notice { flex: 0 0 auto; margin: 12px; }
+
+@media (max-width: 767px) {
+  .chat-page { display: block; height: auto; min-height: 0; overflow: visible; }
+  .mood-page { display: block; width: 100%; }
+  .mood-page .mood-summary { margin-bottom: 24px !important; }
+  .mood-page .mood-calendar { margin-bottom: 0; }
+  .user-dashboard-page .user-quick-action { min-height: 68px; }
+  .assessment-page .assessment-result .ant-result-extra { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .mood-page .mood-summary .ant-row { align-items: flex-start; }
+  .mood-page .mood-question-row { align-items: flex-start; flex-direction: column; }
+  .mood-page .mood-question-answer { min-width: 0; }
+  .chat-page .chat-layout { height: auto !important; min-height: 0; }
+  .chat-page .chat-list-panel { height: 220px !important; }
+  .chat-page .chat-conversation-panel { height: min(62dvh, 560px) !important; min-height: 380px; }
+  .chat-page .chat-ai-notice { margin: 8px; }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  .chat-page { display: block; height: auto; min-height: 0; overflow: visible; }
+  .mood-page { display: block; width: 100%; }
+  .mood-page .mood-summary { margin-bottom: 24px !important; }
+  .chat-page .chat-layout { height: auto; min-height: 0; }
+  .chat-page .chat-list-panel { height: 280px; }
+  .chat-page .chat-conversation-panel { height: min(70dvh, 600px); min-height: 460px; }
+}
+
+@media (max-width: 420px) {
+  .assessment-page .assessment-actions { justify-content: stretch; }
+  .assessment-page .assessment-actions .ant-btn { flex: 1 1 auto; }
+}
+
+/* Shared readable bounds, without clipping long Thai labels or card actions. */
+:is(.user-dashboard-page, .assessment-page, .mood-page, .appointment-page) .ant-card-head-wrapper { flex-wrap: wrap; gap: 8px 16px; padding-block: 12px; }
+:is(.user-dashboard-page, .assessment-page, .mood-page, .appointment-page) .ant-card .ant-card-head-title { min-width: 0; flex: 1 1 180px; white-space: normal; overflow: visible; text-overflow: clip; }
+:is(.user-dashboard-page, .assessment-page, .mood-page, .appointment-page) .ant-card-extra { margin-inline-start: 0; max-width: 100%; }
+:is(.user-dashboard-page, .assessment-page, .mood-page, .appointment-page) .ant-btn { white-space: normal; height: auto; min-height: 44px; }
+:is(.user-dashboard-page, .assessment-page, .mood-page, .appointment-page) .ant-tag { white-space: normal; overflow-wrap: anywhere; }
+.user-dashboard-page > .ant-card:first-of-type { background: var(--role-primary-soft); }
+.user-dashboard-page > .ant-card:first-of-type .ant-row { gap: 16px; }
+.user-dashboard-page .dashboard-stat-grid > .ant-col { display: flex; }
+.user-dashboard-page .dashboard-stat-grid .ant-card { width: 100%; }
+.user-dashboard-page .ant-list-item { flex-wrap: wrap; gap: 12px; }
+.user-dashboard-page .ant-list-item-meta-content { min-width: 0; overflow-wrap: anywhere; }
+.assessment-progress { margin-block: 16px 24px; }
+.assessment-page .ant-result { padding-inline: 0; }
+.mood-dialog .mood-choice-row { row-gap: 8px; margin-bottom: 24px; }
+.mood-dialog .mood-choice { display: flex; flex-direction: column; height: auto; min-width: 64px; min-height: 72px; gap: 4px; }
+.mood-dialog .mood-question-row { gap: 12px; }
+.mood-dialog .mood-question-row > .ant-col { min-width: 0; }
+.mood-dialog .ant-radio-wrapper { min-height: 44px; align-items: center; }
+:is(.mood-dialog, .appointment-dialog) { top: 24px; padding-bottom: 24px; }
+:is(.mood-dialog, .appointment-dialog) .ant-modal-body { max-height: calc(100dvh - 200px); overflow-y: auto; padding: 4px; scrollbar-gutter: stable; }
+.chat-page .chat-partner-item { width: 100%; }
+.chat-page .chat-partner-meta { overflow-wrap: anywhere; }
+.chat-page .chat-messages { scrollbar-gutter: stable; scrollbar-color: var(--role-primary) var(--role-bg); }
+.chat-page .chat-composer > .ant-row { flex-wrap: nowrap; }
+.chat-page .chat-message-row.is-mine > .ant-avatar { color: var(--role-text); }
+@media (max-width: 991px) {
+  .chat-page .chat-layout { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 220px minmax(480px, 72dvh); flex: none; gap: 16px; }
+  .chat-page .chat-list-panel, .chat-page .chat-conversation-panel { height: 100% !important; min-height: 0; }
+  .chat-page .chat-ai-notice { flex-wrap: wrap; gap: 8px; }
+  .chat-page .chat-ai-notice .ant-alert-actions { margin-inline-start: 0; }
+}
+@media (max-width: 767px) {
+  :is(.user-dashboard-page, .assessment-page, .mood-page, .appointment-page) .ant-card-body { padding: 16px; }
+  :is(.user-dashboard-page, .assessment-page, .mood-page, .appointment-page) .ant-card-head { padding-inline: 16px; }
+  .mood-page .ant-picker-calendar-header { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mood-page .ant-picker-calendar-header > * { margin: 0 !important; }
+  .mood-page .ant-picker-calendar-date { margin-inline: 0 !important; padding-inline: 2px !important; }
+  .mood-dialog .mood-question-row { flex-direction: column; align-items: flex-start; }
+  .chat-page .chat-conversation-panel .ant-card-head { padding-inline: 12px; }
+  .chat-page .chat-conversation-panel .ant-card-head-wrapper { padding-block: 8px; }
+  .chat-page .chat-conversation-panel .ant-card-head-title { flex: 1 0 100%; white-space: normal; overflow-wrap: anywhere; }
+  .chat-page .chat-ai-notice { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; padding: 12px; }
+  .chat-page .chat-ai-notice .ant-alert-icon { grid-column: 1; margin: 0; }
+  .chat-page .chat-ai-notice .ant-alert-content { grid-column: 2; min-width: 0; }
+  .chat-page .chat-ai-notice .ant-alert-actions { grid-column: 2; }
+  .chat-page .chat-message-row { padding-inline: 12px; }
+}
+.appointment-scroll-hint { display: none; }
+@media (max-width: 767px) { .appointment-scroll-hint { display: block; margin-bottom: 12px; } }

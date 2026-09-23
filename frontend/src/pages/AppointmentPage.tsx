@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Form, Select, Input, Typography, Table, Tag, Modal, Row, Col, message } from 'antd';
+import { Card, Button, Form, Select, Input, Typography, Table, Tag, Modal, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { appointmentService } from '../services/appointmentService';
@@ -167,7 +167,7 @@ const AppointmentPage: React.FC = () => {
       title: 'จัดการ',
       render: (_: any, record: Appointment) => (
         record.status === 'pending' ? (
-          <Button danger size="small" onClick={() => handleCancel(record.id)}>
+          <Button className="appointment-action" danger size="small" onClick={() => handleCancel(record.id)}>
             ยกเลิก
           </Button>
         ) : null
@@ -176,28 +176,31 @@ const AppointmentPage: React.FC = () => {
   ];
 
   return (
-    <div>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-        <Col><Title level={2}>การนัดหมาย</Title></Col>
-        <Col>
+    <div className="appointment-page">
+      <Title level={2} className="app-page-title">การนัดหมาย</Title>
+
+      {/* รายการนัดหมาย */}
+      <Card
+        title="รายการนัดหมายของฉัน"
+        extra={(
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
             ส่งคำขอนัดหมาย
           </Button>
-        </Col>
-      </Row>
-
-      {/* รายการนัดหมาย */}
-      <Card title="รายการนัดหมายของฉัน">
+        )}
+      >
+        <Text type="secondary" className="appointment-scroll-hint">เลื่อนตารางซ้าย–ขวาเพื่อดูรายละเอียดและจัดการนัดหมาย</Text>
         <Table
           dataSource={appointments}
           columns={columns}
           rowKey="id"
+          scroll={{ x: 720 }}
           locale={{ emptyText: 'ยังไม่มีการนัดหมาย' }}
         />
       </Card>
 
       {/* Modal ส่งคำขอ */}
       <Modal
+        className="appointment-dialog"
         title="ส่งคำขอนัดหมาย"
         open={modalOpen}
         onCancel={() => { setModalOpen(false); form.resetFields(); setSelectedHospitalId(undefined); setSelectedPsyId(undefined); setAvailableSlots([]); }}

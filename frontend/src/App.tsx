@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ConfigProvider } from 'antd';
 import { useContext } from 'react';
 import { AuthProvider, AuthContext } from './context/AuthContext';
+import { getThemeForRole } from './themes';
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -130,15 +131,25 @@ function AppRoutes() {
   );
 }
 
+function RoleThemeProvider({ children }: { children: React.ReactNode }) {
+  const auth = useContext(AuthContext);
+
+  return (
+    <ConfigProvider theme={getThemeForRole(auth?.user?.role)}>
+      {children}
+    </ConfigProvider>
+  );
+}
+
 function App() {
   return (
-    <ConfigProvider>
-      <Router>
-        <AuthProvider>
+    <Router>
+      <AuthProvider>
+        <RoleThemeProvider>
           <AppRoutes />
-        </AuthProvider>
-      </Router>
-    </ConfigProvider>
+        </RoleThemeProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

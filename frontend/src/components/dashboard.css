@@ -1,0 +1,10 @@
+.dashboard-content { min-width: 0; overflow-wrap: anywhere; }
+.dashboard-content .ant-list-item { flex-wrap: wrap; gap: 8px; }
+.dashboard-content .ant-list-item-meta { min-width: 0; }
+.dashboard-content .ant-alert-content { min-width: 0; }
+.dashboard-loading { display: flex; align-items: center; gap: 8px; padding-block: 16px; }
+.dashboard-recovery { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.dashboard-recovery .ant-btn, .dashboard-content .dashboard-action { height: auto; min-height: 44px; white-space: normal; }
+.dashboard-recovery .ant-btn > span, .dashboard-content .dashboard-action > span { white-space: normal; }
+.dashboard-card-link { display: block; color: inherit; border-radius: 8px; }
+.dashboard-card-link:focus-visible { outline: 2px solid #2563EB; outline-offset: 4px; }
