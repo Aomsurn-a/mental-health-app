@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
+import { AuthContext } from '../context/AuthContext';
 import { Card, Button, Form, Select, Input, Typography, Table, Tag, Modal, Row, Col, message } from 'antd';
 import { PlusOutlined, DownloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -28,6 +29,7 @@ const statusConfig: Record<string, { color: string; text: string }> = {
 };
 
 const ComplaintPage: React.FC = () => {
+  const isPsychologist = useContext(AuthContext)?.user?.role === 'psychologist';
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -159,8 +161,8 @@ const ComplaintPage: React.FC = () => {
   ];
 
   return (
-    <div>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+    <div className={isPsychologist ? 'psy-page' : undefined}>
+      <Row className={isPsychologist ? 'psy-page-header' : undefined} justify="space-between" align="middle" style={{ marginBottom: 24 }}>
         <Col><Title level={2}>คำร้อง</Title></Col>
         <Col>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
@@ -171,6 +173,8 @@ const ComplaintPage: React.FC = () => {
 
       <Card title="รายการคำร้องของฉัน">
         <Table
+          className={isPsychologist ? 'psy-table' : undefined}
+          scroll={isPsychologist ? { x: 880 } : undefined}
           dataSource={complaints}
           columns={columns}
           rowKey="id"
@@ -179,6 +183,7 @@ const ComplaintPage: React.FC = () => {
       </Card>
 
       <Modal
+        className={isPsychologist ? 'psy-dialog' : undefined}
         title="ส่งคำร้องใหม่"
         open={modalOpen}
         onCancel={() => { setModalOpen(false); form.resetFields(); }}

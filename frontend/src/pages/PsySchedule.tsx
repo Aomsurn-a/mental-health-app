@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Card, Typography, Button, Modal, DatePicker, TimePicker, InputNumber,
-  Checkbox, message, Popconfirm, Space, Row, Col, Empty, Tag, Divider,
+  Checkbox, message, Popconfirm, Space, Row, Col, Empty, Tag, Divider, Alert, Spin,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
@@ -106,6 +106,8 @@ const buildDetailRows = (schedules: ScheduleSlot[]) => {
 const PsySchedule: React.FC = () => {
   const [weeks, setWeeks] = useState<ScheduleWeek[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   const [viewingWeekId, setViewingWeekId] = useState<number | null>(null);
   const [viewingSchedules, setViewingSchedules] = useState<ScheduleSlot[]>([]);
@@ -120,11 +122,12 @@ const PsySchedule: React.FC = () => {
 
   const fetchWeeks = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await scheduleService.getWeeks();
       setWeeks(data);
     } catch {
-      message.error('โหลดข้อมูลไม่สำเร็จ');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -178,6 +181,8 @@ const PsySchedule: React.FC = () => {
   };
 
   const handleEditWeekClick = async (weekId: number) => {
+    resetModal();
+    setEditLoading(true);
     setModalOpen(true);
     setEditingWeekId(weekId);
     try {
@@ -190,8 +195,8 @@ const PsySchedule: React.FC = () => {
         if (day) {
           day.checked = true;
           day.slots.push({
-            start: dayjs(s.start_time, 'HH:mm:ss'),
-            end: dayjs(s.end_time, 'HH:mm:ss'),
+            start: dayjs(`${s.work_date}T${s.start_time}`),
+            end: dayjs(`${s.work_date}T${s.end_time}`),
             max: s.max_patients_per_slot,
           });
         }
@@ -200,6 +205,8 @@ const PsySchedule: React.FC = () => {
     } catch {
       message.error('โหลดข้อมูลไม่สำเร็จ');
       setModalOpen(false);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -228,7 +235,7 @@ const PsySchedule: React.FC = () => {
     setDayForms(prev => prev.map(d => {
       if (d.date !== date) return d;
       if (!d.checked) {
-        return { ...d, checked: true, slots: d.slots.length ? d.slots : [{ start: dayjs('08:00', 'HH:mm'), end: dayjs('12:00', 'HH:mm'), max: 1 }] };
+        return { ...d, checked: true, slots: d.slots.length ? d.slots : [{ start: dayjs(`${d.date}T08:00:00`), end: dayjs(`${d.date}T12:00:00`), max: 1 }] };
       }
       return { ...d, checked: false };
     }));
@@ -319,8 +326,8 @@ const PsySchedule: React.FC = () => {
 
   if (viewingWeekId) {
     return (
-      <div>
-        <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+      <div className="psy-page">
+        <Row className="psy-page-header" justify="space-between" align="middle">
           <Col>
             <Space align="center">
               <Button icon={<ArrowLeftOutlined />} onClick={backToList}>กลับ</Button>
@@ -330,7 +337,7 @@ const PsySchedule: React.FC = () => {
             </Space>
           </Col>
           <Col>
-            <Button type="primary" icon={<EditOutlined />} onClick={() => handleEditWeekClick(viewingWeekId)}>
+            <Button type="primary" disabled={detailLoading} icon={<EditOutlined />} onClick={() => handleEditWeekClick(viewingWeekId)}>
               แก้ไขตาราง
             </Button>
           </Col>
@@ -340,13 +347,13 @@ const PsySchedule: React.FC = () => {
           {detail.rows.length === 0 ? (
             <Empty description="ยังไม่มีตารางงานในสัปดาห์นี้" />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 600 }}>
+            <div className="psy-schedule-scroll" role="region" aria-label="ตารางงานรายสัปดาห์ เลื่อนแนวนอนเพื่อดูทุกช่วงเวลา" tabIndex={0}>
+              <table className="psy-schedule-table" aria-label="วันและช่วงเวลารับผู้ป่วย">
                 <thead>
                   <tr>
-                    <th style={{ border: '1px solid #f0f0f0', padding: 8, background: '#fafafa', width: 90 }}>วันที่</th>
+                    <th scope="col">วันที่</th>
                     {detail.bands.map((b, i) => (
-                      <th key={i} style={{ border: '1px solid #f0f0f0', padding: 8, background: '#fafafa' }}>
+                      <th scope="col" key={i}>
                         {b.start.slice(0, 5)}-{b.end.slice(0, 5)}
                       </th>
                     ))}
@@ -355,21 +362,16 @@ const PsySchedule: React.FC = () => {
                 <tbody>
                   {detail.rows.map(row => (
                     <tr key={row.date}>
-                      <td style={{ border: '1px solid #f0f0f0', padding: 8, textAlign: 'center', background: '#fafafa', fontWeight: 600 }}>
+                      <th scope="row">
                         {thaiDateShort(dayjs(row.date))}
-                      </td>
+                      </th>
                       {row.cells.map((cell, i) => (
                         <td
                           key={i}
                           colSpan={cell.colspan}
-                          style={{
-                            border: '1px solid #f0f0f0',
-                            padding: 8,
-                            textAlign: 'center',
-                            background: cell.type === 'work' ? '#e6f4ff' : cell.type === 'break' ? '#fafafa' : '#fff',
-                          }}
+                          className={`is-${cell.type}`}
                         >
-                          {cell.type === 'work' && <Text strong style={{ color: '#1677ff' }}>{cell.label}</Text>}
+                          {cell.type === 'work' && cell.label}
                           {cell.type === 'break' && <Text type="secondary">{cell.label}</Text>}
                         </td>
                       ))}
@@ -389,18 +391,22 @@ const PsySchedule: React.FC = () => {
   function renderModal() {
     return (
       <Modal
+        className="psy-dialog"
         title={editingWeekId ? 'แก้ไขตารางสัปดาห์' : 'เพิ่มตารางสัปดาห์'}
         open={modalOpen}
-        onCancel={() => { setModalOpen(false); resetModal(); }}
+        onCancel={() => { if (!editLoading) { setModalOpen(false); resetModal(); } }}
         onOk={handleSubmit}
         okText="บันทึก"
         cancelText="ยกเลิก"
         confirmLoading={saving}
+        okButtonProps={{ disabled: editLoading }}
         width={700}
       >
-        <Text strong>ขั้นตอนที่ 1: เลือกสัปดาห์</Text>
+        {editLoading ? <div className="psy-loading" role="status"><Spin size="small" />กำลังโหลดตารางงาน…</div> : <>
+        <label htmlFor="psy-week"><Text strong>ขั้นตอนที่ 1: เลือกสัปดาห์</Text></label>
         <div style={{ marginTop: 8, marginBottom: 16 }}>
           <DatePicker
+            id="psy-week"
             picker="week"
             showWeek={false}
             locale={weekPickerLocale}
@@ -415,7 +421,7 @@ const PsySchedule: React.FC = () => {
               สัปดาห์: {weekTitle(selectedWeekStart.format('YYYY-MM-DD'), selectedWeekStart.add(6, 'day').format('YYYY-MM-DD'))}
             </Text>
           )}
-          <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>
+          <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 13 }}>
             เลือกสัปดาห์ใดก็ได้ ยกเว้นสัปดาห์ที่มีตารางงานอยู่แล้ว
           </Text>
         </div>
@@ -424,7 +430,7 @@ const PsySchedule: React.FC = () => {
           <>
             <Text strong>ขั้นตอนที่ 2: เลือกวันทำงาน</Text>
             <div style={{ marginTop: 8, marginBottom: 16 }}>
-              <Space wrap>
+              <Space className="psy-work-days" wrap>
                 {dayForms.map(d => (
                   <Checkbox key={d.date} checked={d.checked} onChange={() => toggleDayChecked(d.date)}>
                     {thaiDateFull(dayjs(d.date))}
@@ -439,33 +445,40 @@ const PsySchedule: React.FC = () => {
                 <Text type="secondary">ยังไม่ได้เลือกวันทำงาน</Text>
               )}
               {dayForms.filter(d => d.checked).map(d => (
-                <div key={d.date} style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-                  <Text strong>✅ {thaiDateFull(dayjs(d.date))}:</Text>
+                <div key={d.date} className="psy-schedule-day">
+                  <Text strong>{thaiDateFull(dayjs(d.date))}</Text>
                   <div style={{ marginTop: 8 }}>
                     {d.slots.map((s, i) => (
-                      <Space key={i} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
-                        <Text type="secondary" style={{ width: 60 }}>ช่วงที่ {i + 1}:</Text>
-                        <Text>เริ่ม</Text>
+                      <div key={i} className="psy-slot-row">
+                        <Text className="psy-slot-label">ช่วงที่ {i + 1}</Text>
+                        <div className="psy-slot-field">
+                        <label htmlFor={`start-${d.date}-${i}`}>เวลาเริ่ม</label>
                         <TimePicker
+                          id={`start-${d.date}-${i}`}
                           format="HH:mm"
                           minuteStep={5}
                           value={s.start}
                           onChange={val => updateSlot(d.date, i, { start: val })}
                           placeholder="เวลาเริ่ม"
                         />
-                        <Text>ถึง</Text>
+                        </div>
+                        <div className="psy-slot-field">
+                        <label htmlFor={`end-${d.date}-${i}`}>เวลาสิ้นสุด</label>
                         <TimePicker
+                          id={`end-${d.date}-${i}`}
                           format="HH:mm"
                           minuteStep={5}
                           value={s.end}
                           onChange={val => updateSlot(d.date, i, { end: val })}
                           placeholder="เวลาสิ้นสุด"
                         />
-                        <Text>รับ</Text>
-                        <InputNumber min={1} value={s.max} onChange={val => updateSlot(d.date, i, { max: val || 1 })} style={{ width: 70 }} />
-                        <Text>คน/ชม.</Text>
-                        <Button danger type="text" icon={<DeleteOutlined />} onClick={() => removeSlot(d.date, i)} />
-                      </Space>
+                        </div>
+                        <div className="psy-slot-field">
+                          <label htmlFor={`capacity-${d.date}-${i}`}>รับ (คน/ชม.)</label>
+                          <InputNumber id={`capacity-${d.date}-${i}`} min={1} value={s.max} onChange={val => updateSlot(d.date, i, { max: val || 1 })} />
+                        </div>
+                        <Button danger type="text" aria-label={`ลบช่วงที่ ${i + 1} วัน${THAI_DAY_FULL[d.day_of_week]}`} icon={<DeleteOutlined />} onClick={() => removeSlot(d.date, i)} />
+                      </div>
                     ))}
                     <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => addSlot(d.date)}>
                       เพิ่มช่วงเวลา
@@ -476,13 +489,14 @@ const PsySchedule: React.FC = () => {
             </div>
           </>
         )}
+        </>}
       </Modal>
     );
   }
 
   return (
-    <div>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+    <div className="psy-page">
+      <Row className="psy-page-header" justify="space-between" align="middle">
         <Col><Title level={2} style={{ margin: 0 }}>ตารางงาน</Title></Col>
         <Col>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAddWeekClick}>
@@ -493,6 +507,8 @@ const PsySchedule: React.FC = () => {
 
       {loading ? (
         <Card loading />
+      ) : loadError ? (
+        <Alert type="error" showIcon title="โหลดตารางงานไม่สำเร็จ" action={<Button onClick={fetchWeeks}>ลองอีกครั้ง</Button>} />
       ) : weeks.length === 0 ? (
         <Card>
           <Empty description="ยังไม่มีตารางงาน" />
@@ -502,11 +518,12 @@ const PsySchedule: React.FC = () => {
           {weeks.map(w => (
             <Col xs={24} sm={12} md={8} key={w.id}>
               <Card
+                className="psy-week-card"
                 title={weekTitle(w.week_start, w.week_end)}
                 actions={[
-                  <a key="view" onClick={() => openDetail(w.id)}>ดูรายละเอียด</a>,
+                  <Button type="link" key="view" onClick={() => openDetail(w.id)}>ดูรายละเอียด</Button>,
                   <Popconfirm key="delete" title="ยืนยันการลบตารางสัปดาห์นี้?" okText="ลบ" cancelText="ยกเลิก" onConfirm={() => handleDeleteWeek(w.id)}>
-                    <a style={{ color: '#ff4d4f' }}>ลบ</a>
+                    <Button type="text" danger aria-label={`ลบตารางสัปดาห์ ${weekTitle(w.week_start, w.week_end)}`}>ลบ</Button>
                   </Popconfirm>,
                 ]}
               >

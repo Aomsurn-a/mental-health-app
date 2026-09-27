@@ -1,0 +1,101 @@
+/* Psychologist-only refinements. Portal dialogs opt in with psy-dialog. */
+.app-frame.role-psychologist,
+.psy-dialog {
+  --psy-primary: #475569;
+  --psy-primary-hover: #334155;
+  --psy-soft: #F1F5F9;
+  --psy-secondary: #0F766E;
+  --psy-bg: #F8FAFC;
+  --psy-surface: #FFFFFF;
+  --psy-border: #E2E8F0;
+  --psy-text: #1E293B;
+  --psy-muted: #64748B;
+  --psy-info: #2563EB;
+  --psy-warning: #B45309;
+  --psy-error: #C2413B;
+  --psy-success: #16805C;
+  --focus-ring: var(--psy-info);
+  --text-secondary: var(--psy-muted);
+  caret-color: var(--psy-primary);
+  scrollbar-color: var(--psy-primary) var(--psy-bg);
+}
+.role-psychologist .ant-layout-content > div { max-width: 1200px; margin-inline: auto; min-width: 0; }
+.role-psychologist .ant-layout-content { overflow-wrap: anywhere; }
+.role-psychologist .ant-layout-content h2 { margin-block: 0 24px; font-size: 32px; line-height: 1.4; }
+.psy-page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+.psy-page-header h2, .psy-page-header h3 { margin: 0 !important; }
+.psy-page-header .ant-space { flex-wrap: wrap; }
+.psy-page-header .ant-space-item { min-width: 0; }
+.psy-metrics > .ant-col { display: flex; }
+.psy-metrics .ant-card { width: 100%; }
+.psy-metrics .ant-card-body { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.psy-metrics .ant-statistic-content { font-variant-numeric: tabular-nums; }
+.psy-metrics .ant-statistic-title { color: var(--psy-muted); }
+.psy-metrics .psy-report-toggle { align-self: flex-start; margin-top: auto; }
+.psy-notice { margin-bottom: 16px; }
+.psy-scroll-hint { display: none; }
+.psy-loading { display: flex; gap: 12px; align-items: center; min-height: 120px; justify-content: center; }
+.psy-table .ant-table-cell { overflow-wrap: anywhere; vertical-align: top; }
+.psy-table .ant-table-thead > tr > th { background: var(--psy-soft); }
+.psy-table .ant-table-content { scrollbar-color: var(--psy-primary) var(--psy-bg); }
+.psy-table .ant-pagination { flex-wrap: wrap; row-gap: 8px; }
+.psy-search { width: 100%; max-width: 440px; margin-bottom: 16px; }
+.psy-search-label { display: block; margin-bottom: 8px; font-weight: 500; }
+.psy-native-select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--psy-muted); border-radius: 10px; color: var(--psy-text); background: var(--psy-surface); }
+.psy-dialog .ant-form-item-has-error .psy-native-select { border-color: var(--psy-error); }
+.psy-dialog .ant-modal-container { border-radius: 18px; }
+.psy-dialog .ant-modal-title { padding-inline-end: 24px; overflow-wrap: anywhere; }
+.psy-dialog .ant-modal-body { padding-top: 16px; }
+.psy-dialog .ant-form-item { margin-bottom: 16px; }
+.psy-dialog .ant-modal-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.psy-dialog .ant-modal-footer > .ant-btn { margin-inline-start: 0 !important; }
+:is(.role-psychologist, .psy-dialog) .ant-btn { min-height: 44px; height: auto; white-space: normal; }
+:is(.role-psychologist, .psy-dialog) .ant-btn > span { white-space: normal; }
+:is(.role-psychologist, .psy-dialog) .ant-btn-icon-only { min-width: 44px; }
+:is(.role-psychologist, .psy-dialog) :focus-visible { outline: 2px solid var(--psy-info); outline-offset: 3px; }
+:is(.role-psychologist, .psy-dialog) .ant-tag { max-width: 100%; white-space: normal; }
+:is(.app-frame.role-psychologist, .psy-dialog) .ant-tag.ant-tag-green { color: var(--psy-success); }
+:is(.app-frame.role-psychologist, .psy-dialog) .ant-tag:is(.ant-tag-orange, .ant-tag-gold) { color: var(--psy-warning); }
+:is(.app-frame.role-psychologist, .psy-dialog) .ant-tag.ant-tag-blue { color: var(--psy-info); }
+:is(.app-frame.role-psychologist, .psy-dialog) .ant-tag.ant-tag-red { color: var(--psy-error); }
+.psy-dialog .ant-form, .psy-dialog .ant-tabs { min-width: 0; }
+.psy-form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.psy-form-actions .ant-col { max-width: 100%; }
+.psy-week-card { height: 100%; }
+.psy-week-card .ant-card-actions .ant-btn { width: 100%; }
+.psy-schedule-scroll { overflow-x: auto; border: 1px solid var(--psy-border); border-radius: 10px; }
+.psy-schedule-table { border-collapse: collapse; width: 100%; min-width: 600px; font-variant-numeric: tabular-nums; }
+.psy-schedule-table th, .psy-schedule-table td { border: 1px solid var(--psy-border); padding: 16px; text-align: center; }
+.psy-schedule-table th { background: var(--psy-soft); color: var(--psy-text); font-weight: 600; }
+.psy-schedule-table .is-work { background: var(--psy-bg); color: var(--psy-secondary); font-weight: 600; }
+.psy-schedule-table .is-break { background: var(--psy-soft); color: var(--psy-muted); }
+.psy-schedule-day { border: 1px solid var(--psy-border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.psy-slot-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(100px, .85fr) 44px; gap: 12px; align-items: end; padding-block: 12px; }
+.psy-slot-label { grid-column: 1 / -1; font-size: 13px; color: var(--psy-muted); }
+.psy-slot-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.psy-slot-field > label { font-size: 14px; }
+.psy-slot-field .ant-picker, .psy-slot-field .ant-input-number { width: 100%; }
+.psy-work-days .ant-checkbox-wrapper { min-height: 44px; align-items: center; }
+.role-psychologist .dashboard-content .ant-alert { flex-wrap: wrap; gap: 8px; }
+.role-psychologist .dashboard-content .ant-alert-actions { margin-inline-start: 0; }
+.role-psychologist .dashboard-content .ant-card-head-wrapper { flex-wrap: wrap; gap: 8px; padding-block: 8px; }
+.role-psychologist .dashboard-content .ant-card-extra { margin-inline-start: 0; }
+.role-psychologist .dashboard-content .ant-list-item-meta-description { color: var(--psy-muted); }
+.role-psychologist .chat-message-bubble { line-height: 1.65; }
+.role-psychologist .chat-page .chat-partner-item:focus-visible { outline-offset: -3px; }
+.psy-profile .ant-avatar { background: var(--psy-primary) !important; }
+.psy-profile > .ant-card .ant-row { flex-wrap: nowrap; }
+.psy-profile > .ant-card .ant-col:last-child { min-width: 0; }
+@media (min-width: 1440px) {
+  .role-psychologist .ant-layout-content { padding: 32px; }
+}
+@media (max-width: 767px) {
+  .role-psychologist .ant-layout-content h2 { font-size: 24px; }
+  .role-psychologist .ant-layout-content .ant-card-body { padding: 16px; }
+  .role-psychologist .ant-layout-content .ant-card-head { padding-inline: 16px; }
+  .psy-scroll-hint { display: block; margin-bottom: 12px; font-size: 13px; color: var(--psy-muted); }
+  .psy-dialog .ant-modal-container { padding: 20px 16px; }
+  .psy-slot-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .psy-slot-row > .ant-btn { justify-self: end; }
+  .psy-profile .ant-form .ant-col-12 { flex: 0 0 100%; max-width: 100%; }
+}

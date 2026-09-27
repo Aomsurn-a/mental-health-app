@@ -46,8 +46,10 @@ const Login: React.FC = () => {
       <Card className="login-card">
         <div className="login-brand">
           <span className="login-brand-icon"><HeartOutlined aria-hidden="true" /></span>
-          <Title level={1}>ระบบดูแลสุขภาพจิต</Title>
-          <p>พื้นที่สำหรับดูแลสุขภาพใจของคุณ</p>
+          <Title level={1}>
+            ระบบตรวจสอบติดตามสุขภาพจิต<br />
+            และนัดหมายนักจิต
+          </Title>
         </div>
 
         {auth?.error && (

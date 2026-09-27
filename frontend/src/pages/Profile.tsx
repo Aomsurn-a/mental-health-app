@@ -45,7 +45,7 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className={auth?.user?.role === 'psychologist' ? 'psy-profile' : undefined}>
       <Title level={2}>ข้อมูลส่วนตัว</Title>
 
       {/* ข้อมูลโปรไฟล์ */}

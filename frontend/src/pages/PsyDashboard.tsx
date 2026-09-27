@@ -118,7 +118,7 @@ const PsyDashboard: React.FC = () => {
               key={a.id}
               type="error"
               showIcon
-              message={`⚠️ ผู้ป่วย ${a.first_name} ${a.last_name} มีความเสี่ยงจากการสนทนากับ AI เมื่อ ${dayjs(a.created_at).format('DD/MM/YYYY HH:mm')} กรุณาติดต่อด่วน`}
+              message={`ผู้ป่วย ${a.first_name} ${a.last_name} มีความเสี่ยงจากการสนทนากับ AI เมื่อ ${dayjs(a.created_at).format('DD/MM/YYYY HH:mm')} กรุณาติดต่อด่วน`}
               description={a.detail}
               action={
                 <Button size="small" danger className="dashboard-action" loading={pendingActions.includes('ai:' + a.id)} onClick={() => acknowledge('ai', a.id)}>
@@ -152,14 +152,14 @@ const PsyDashboard: React.FC = () => {
       </Title>
       <Text type="secondary">วันนี้ {dayjs().format('DD/MM/YYYY')}</Text>
 
-      <Row gutter={[16, 16]} style={{ marginTop: 24, marginBottom: 24 }}>
+      <Row className="psy-metrics" gutter={[16, 16]} style={{ marginTop: 24, marginBottom: 24 }}>
         <Col xs={24} sm={12} lg={6}>
 <Card>
             <DashboardSection label="ข้อมูลสรุป" resource={appointmentResource}><Link className="dashboard-card-link" to="/appointment"><Statistic
               title="รอการอนุมัติ"
               value={pendingAppts.length}
               prefix={<ExclamationCircleOutlined />}
-              valueStyle={{ color: pendingAppts.length ? '#faad14' : '#52c41a' }}
+              valueStyle={{ color: pendingAppts.length ? 'var(--psy-warning)' : 'var(--psy-primary)' }}
             /></Link></DashboardSection>
           </Card>
         </Col>
@@ -169,7 +169,7 @@ const PsyDashboard: React.FC = () => {
               title="นัดหมายวันนี้"
               value={todayAppts.length}
               prefix={<CalendarOutlined />}
-              valueStyle={{ color: '#1677ff' }}
+              valueStyle={{ color: 'var(--psy-info)' }}
             /></Link></DashboardSection>
           </Card>
         </Col>
@@ -179,19 +179,19 @@ const PsyDashboard: React.FC = () => {
               title="ผู้ป่วยในความดูแล"
               value={patients.length}
               prefix={<TeamOutlined />}
-              valueStyle={{ color: '#722ed1' }}
+              valueStyle={{ color: 'var(--psy-primary)' }}
             /></Link></DashboardSection>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Button className="dashboard-action" onClick={() => setShowReports(!showReports)} aria-expanded={showReports} aria-controls="my-reports">ดูรายงานที่ได้รับ</Button>
             <DashboardSection label="ข้อมูลสรุป" resource={reportResource}><Statistic
               title="รายงานที่ได้รับ"
               value={reports.length}
               prefix={<FileTextOutlined />}
-              valueStyle={{ color: reports.length ? '#ff4d4f' : '#52c41a' }}
+              valueStyle={{ color: reports.length ? 'var(--psy-error)' : 'var(--psy-primary)' }}
             /></DashboardSection>
+            <Button className="dashboard-action psy-report-toggle" onClick={() => setShowReports(!showReports)} aria-expanded={showReports} aria-controls="my-reports">ดูรายงานที่ได้รับ</Button>
           </Card>
         </Col>
       </Row>
@@ -230,7 +230,7 @@ const PsyDashboard: React.FC = () => {
                 renderItem={item => (
                   <List.Item>
                     <List.Item.Meta
-                      avatar={<TeamOutlined style={{ fontSize: 20, color: '#722ed1' }} />}
+                      avatar={<TeamOutlined style={{ fontSize: 20, color: 'var(--psy-primary)' }} aria-hidden="true" />}
                       title={`${item.first_name} ${item.last_name}`}
                       description={
                         `${dayjs(item.appointment_date).format('DD/MM/YYYY')} ${item.appointment_time?.slice(0, 5)} น.` +
@@ -264,7 +264,7 @@ const PsyDashboard: React.FC = () => {
                 renderItem={s => (
                   <List.Item>
                     <List.Item.Meta
-                      avatar={<ClockCircleOutlined style={{ fontSize: 18, color: '#1677ff' }} />}
+                      avatar={<ClockCircleOutlined style={{ fontSize: 18, color: 'var(--psy-info)' }} aria-hidden="true" />}
                       title={`${s.start_time.slice(0, 5)} - ${s.end_time.slice(0, 5)} น.`}
                       description={`รับได้สูงสุด ${s.max_patients_per_slot} คน/ชม.`}
                     />

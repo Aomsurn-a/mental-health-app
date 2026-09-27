@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Typography, Tag, Modal, Tabs, Row, Col, Input, Form, Button, message, Empty } from 'antd';
+import React, { useRef, useState } from 'react';
+import { Card, Table, Typography, Tag, Modal, Tabs, Row, Col, Input, Form, Button, message, Empty, Alert, Spin } from 'antd';
+import { DashboardSection } from '../components/DashboardSection';
+import { useDashboardResource } from '../hooks/useDashboardResource';
 import { UserOutlined, SearchOutlined } from '@ant-design/icons';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -36,12 +38,17 @@ const statusConfig: Record<string, { color: string; text: string }> = {
 };
 
 const PsyPatients: React.FC = () => {
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
+  const patientResource = useDashboardResource(patientService.getMyPatients);
+  const patients = patientResource.data ?? [];
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientDetail, setPatientDetail] = useState<PatientDetail | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState(false);
+  const detailRequest = useRef(0);
+  const recordRequest = useRef(0);
+  const [recordFetching, setRecordFetching] = useState(false);
+  const [recordError, setRecordError] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [recordDetailOpen, setRecordDetailOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -49,54 +56,41 @@ const PsyPatients: React.FC = () => {
   const [recordForm] = Form.useForm();
   const [recordLoading, setRecordLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const data = await patientService.getMyPatients();
-        setPatients(data);
-        setFilteredPatients(data);
-      } catch {
-        message.error('โหลดข้อมูลไม่สำเร็จ');
-      }
-    };
-    fetchPatients();
-  }, []);
-
-  const handleSearch = (value: string) => {
-    setSearchText(value);
-    if (!value) {
-      setFilteredPatients(patients);
-      return;
-    }
-    const filtered = patients.filter(p =>
-      `${p.first_name} ${p.last_name}`.toLowerCase().includes(value.toLowerCase()) ||
-      p.email?.toLowerCase().includes(value.toLowerCase()) ||
-      p.phone?.includes(value)
-    );
-    setFilteredPatients(filtered);
-  };
+  const handleSearch = (value: string) => setSearchText(value);
+  const query = searchText.trim().toLowerCase();
+  const filteredPatients = patients.filter(p =>
+    `${p.first_name} ${p.last_name}`.toLowerCase().includes(query) ||
+    p.email?.toLowerCase().includes(query) || p.phone?.includes(query)
+  );
 
   const handleViewDetail = async (patient: Patient) => {
+    const request = ++detailRequest.current;
     setSelectedPatient(patient);
     setModalOpen(true);
     setDetailLoading(true);
+    setPatientDetail(null);
+    setDetailError(false);
     try {
       const data = await patientService.getPatientDetail(patient.id);
-      setPatientDetail(data);
+      if (request === detailRequest.current) setPatientDetail(data);
     } catch {
-      message.error('โหลดข้อมูลผู้ป่วยไม่สำเร็จ');
+      if (request === detailRequest.current) setDetailError(true);
     } finally {
-      setDetailLoading(false);
+      if (request === detailRequest.current) setDetailLoading(false);
     }
   };
 
   const handleViewRecord = async (appt: any) => {
+    const request = ++recordRequest.current;
+    setRecordFetching(true);
+    setRecordError(false);
     setSelectedApptId(appt.id);
     setRecordDetailOpen(true);
     recordForm.resetFields();
     setSelectedRecord(null);
     try {
       const data = await patientService.getRecordByAppointment(appt.id);
+      if (request !== recordRequest.current) return;
       if (data) {
         setSelectedRecord(data);
         recordForm.setFieldsValue({
@@ -107,12 +101,14 @@ const PsyPatients: React.FC = () => {
         });
       }
     } catch {
-      console.error('โหลดบันทึกไม่สำเร็จ');
+      if (request === recordRequest.current) setRecordError(true);
+    } finally {
+      if (request === recordRequest.current) setRecordFetching(false);
     }
   };
 
   const handleSaveRecord = async (values: any) => {
-    if (!selectedApptId || !selectedPatient) return;
+    if (!selectedApptId || !selectedPatient || recordFetching || recordError) return;
     setRecordLoading(true);
     try {
       await patientService.addRecord({
@@ -154,12 +150,12 @@ const PsyPatients: React.FC = () => {
     {
       title: 'นัดล่าสุด',
       dataIndex: 'last_appointment',
-      render: (date: string) => dayjs(date).format('DD/MM/YYYY'),
+      render: (date: string) => date ? dayjs(date).format('DD/MM/YYYY') : '-',
     },
     {
       title: 'ดูประวัติ',
       render: (_: any, record: Patient) => (
-        <a onClick={() => handleViewDetail(record)}>ดูประวัติ</a>
+        <Button type="link" onClick={() => handleViewDetail(record)} aria-label={`ดูประวัติ ${record.first_name} ${record.last_name}`}>ดูประวัติ</Button>
       ),
     },
   ];
@@ -179,7 +175,7 @@ const PsyPatients: React.FC = () => {
       title: 'คำแนะนำ',
       dataIndex: 'recommendation',
       render: (rec: string) => (
-        <Text style={{ maxWidth: 200, display: 'block' }} ellipsis={{ tooltip: rec }}>{rec}</Text>
+        <Text>{rec || '-'}</Text>
       ),
     },
     {
@@ -233,28 +229,35 @@ const PsyPatients: React.FC = () => {
   ];
 
   return (
-    <div>
-      <Title level={2}>รายชื่อผู้ป่วย</Title>
+    <div className="psy-page">
+      <header className="psy-page-header"><Title level={2}>รายชื่อผู้ป่วย</Title></header>
 
       <Card>
+        <label htmlFor="psy-patient-search" className="psy-search-label">ค้นหาผู้ป่วย</label>
         <Search
+          id="psy-patient-search"
+          className="psy-search"
           placeholder="ค้นหาชื่อ, อีเมล หรือเบอร์โทร..."
           allowClear
-          enterButton={<SearchOutlined />}
-          style={{ maxWidth: 400, marginBottom: 16 }}
+          enterButton={<Button type="primary" icon={<SearchOutlined />} aria-label="ค้นหาผู้ป่วย" />}
+          value={searchText}
           onSearch={handleSearch}
           onChange={e => handleSearch(e.target.value)}
         />
-        <Table
+        <DashboardSection label="รายชื่อผู้ป่วย" resource={patientResource}>
+        <Text className="psy-scroll-hint">เลื่อนตารางแนวนอนเพื่อดูข้อมูลและเปิดประวัติผู้ป่วย</Text>
+        <Table className="psy-table" scroll={{ x: 760 }} pagination={{ pageSize: 10, showSizeChanger: false }}
           dataSource={filteredPatients}
           columns={columns}
           rowKey="id"
           locale={{ emptyText: searchText ? 'ไม่พบผู้ป่วยที่ค้นหา' : 'ยังไม่มีผู้ป่วย' }}
         />
+        </DashboardSection>
       </Card>
 
       {/* Modal ประวัติผู้ป่วย */}
       <Modal
+        className="psy-dialog"
         title={
           <Row align="middle" gutter={8}>
             <Col><UserOutlined /></Col>
@@ -262,19 +265,22 @@ const PsyPatients: React.FC = () => {
           </Row>
         }
         open={modalOpen}
-        onCancel={() => { setModalOpen(false); setPatientDetail(null); }}
+        onCancel={() => { ++detailRequest.current; setModalOpen(false); setPatientDetail(null); }}
         footer={null}
         width={900}
       >
         {detailLoading ? (
-          <div style={{ textAlign: 'center', padding: 24 }}>กำลังโหลด...</div>
+          <div className="psy-loading" role="status"><Spin size="small" />กำลังโหลดประวัติผู้ป่วย…</div>
+        ) : detailError ? (
+          <Alert type="error" showIcon title="โหลดข้อมูลผู้ป่วยไม่สำเร็จ"
+            action={<Button onClick={() => selectedPatient && handleViewDetail(selectedPatient)}>ลองอีกครั้ง</Button>} />
         ) : patientDetail && (
           <Tabs items={[
             {
               key: 'assessment',
               label: `ผลประเมิน (${patientDetail.assessments.length})`,
               children: (
-                <Table dataSource={patientDetail.assessments} columns={assessmentColumns}
+                <Table className="psy-table" scroll={{ x: 680 }} dataSource={patientDetail.assessments} columns={assessmentColumns}
                   rowKey="id" size="small" locale={{ emptyText: 'ไม่มีผลประเมิน' }} />
               ),
             },
@@ -282,7 +288,7 @@ const PsyPatients: React.FC = () => {
               key: 'mood',
               label: `Mood Tracking (${patientDetail.moods.length})`,
               children: (
-                <Table dataSource={patientDetail.moods} columns={moodColumns}
+                <Table className="psy-table" scroll={{ x: 480 }} dataSource={patientDetail.moods} columns={moodColumns}
                   rowKey="mood_date" size="small" locale={{ emptyText: 'ไม่มีข้อมูล Mood' }} />
               ),
             },
@@ -323,9 +329,10 @@ const PsyPatients: React.FC = () => {
                           <Line
                             type="monotone"
                             dataKey="score"
-                            stroke="#1677ff"
+                            stroke="var(--psy-info)"
                             strokeWidth={2}
-                            dot={{ fill: '#1677ff', r: 4 }}
+                            dot={{ fill: 'var(--psy-info)', r: 4 }}
+                            isAnimationActive={false}
                             activeDot={{ r: 6 }}
                           />
                         </LineChart>
@@ -354,7 +361,7 @@ const PsyPatients: React.FC = () => {
               key: 'appointment',
               label: `ประวัตินัดหมาย (${patientDetail.appointments.length})`,
               children: (
-                <Table dataSource={patientDetail.appointments} columns={apptColumns}
+                <Table className="psy-table" scroll={{ x: 640 }} dataSource={patientDetail.appointments} columns={apptColumns}
                   rowKey="id" size="small" locale={{ emptyText: 'ไม่มีประวัติการนัดหมาย' }} />
               ),
             },
@@ -364,27 +371,25 @@ const PsyPatients: React.FC = () => {
 
       {/* Modal บันทึกการรักษา */}
       <Modal
+        className="psy-dialog"
         title={selectedRecord
           ? `แก้ไขบันทึกการรักษา (ครั้งที่ ${selectedRecord.session_number})`
           : 'บันทึกการรักษา'}
         open={recordDetailOpen}
-        onCancel={() => setRecordDetailOpen(false)}
+        onCancel={() => { ++recordRequest.current; setRecordDetailOpen(false); }}
         onOk={() => recordForm.submit()}
         okText={selectedRecord ? 'อัพเดท' : 'บันทึก'}
         cancelText="ปิด"
         confirmLoading={recordLoading}
+        okButtonProps={{ disabled: recordFetching || recordError }}
         width={600}
       >
-        {selectedRecord ? (
-          <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, padding: 12, marginBottom: 16 }}>
-            <Text type="success">✅ มีบันทึกอยู่แล้ว — สามารถแก้ไขได้</Text>
-          </div>
-        ) : (
-          <div style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6, padding: 12, marginBottom: 16 }}>
-            <Text type="warning">⚠️ ยังไม่มีบันทึกการรักษาสำหรับการนัดหมายครั้งนี้</Text>
-          </div>
-        )}
-        <Form form={recordForm} layout="vertical" onFinish={handleSaveRecord}>
+        {recordFetching ? <div className="psy-loading" role="status"><Spin size="small" />กำลังโหลดบันทึกการรักษา…</div>
+          : recordError ? <Alert className="psy-notice" type="error" showIcon title="โหลดบันทึกการรักษาไม่สำเร็จ"
+            action={<Button onClick={() => handleViewRecord({ id: selectedApptId })}>ลองอีกครั้ง</Button>} />
+          : <Alert className="psy-notice" type={selectedRecord ? 'success' : 'info'} showIcon
+            title={selectedRecord ? 'มีบันทึกอยู่แล้ว — สามารถแก้ไขได้' : 'ยังไม่มีบันทึกการรักษาสำหรับการนัดหมายครั้งนี้'} />}
+        <Form form={recordForm} layout="vertical" onFinish={handleSaveRecord} disabled={recordFetching || recordError || recordLoading}>
           <Form.Item name="symptoms" label="อาการ">
             <Input.TextArea rows={2} placeholder="อาการของผู้ป่วย..." />
           </Form.Item>

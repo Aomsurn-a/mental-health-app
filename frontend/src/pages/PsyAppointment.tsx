@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, Col, message } from 'antd';
+import React, { useRef, useState } from 'react';
+import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, Col, message, Alert, Spin } from 'antd';
+import { useDashboardResource } from '../hooks/useDashboardResource';
+import { DashboardSection } from '../components/DashboardSection';
 import dayjs from 'dayjs';
 import { appointmentService } from '../services/appointmentService';
 import { patientService } from '../services/patientService';
@@ -19,13 +21,18 @@ const statusConfig: Record<string, { color: string; text: string }> = {
 };
 
 const PsyAppointment: React.FC = () => {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const appointmentResource = useDashboardResource(appointmentService.getPsychologistAppointments);
+  const appointments = appointmentResource.data ?? [];
+  const fetchAppointments = appointmentResource.reload;
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [recordModalOpen, setRecordModalOpen] = useState(false);
   const [nextApptModalOpen, setNextApptModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [existingRecord, setExistingRecord] = useState<any>(null);
+  const [recordLoading, setRecordLoading] = useState(false);
+  const [recordError, setRecordError] = useState(false);
+  const recordRequest = useRef(0);
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [statusForm] = Form.useForm();
@@ -46,28 +53,19 @@ const PsyAppointment: React.FC = () => {
     }
   };
 
-  const fetchAppointments = async () => {
-    try {
-      const data = await appointmentService.getPsychologistAppointments();
-      setAppointments(data);
-    } catch {
-      message.error('โหลดข้อมูลไม่สำเร็จ');
-    }
-  };
-
-  useEffect(() => {
-    fetchAppointments();
-  }, []);
-
   // เปิด Modal บันทึกการรักษา + โหลดข้อมูลที่บันทึกไว้แล้ว
   const handleOpenRecordModal = async (record: any) => {
+    const request = ++recordRequest.current;
     setSelectedAppt(record);
     recordForm.resetFields();
     setExistingRecord(null);
+    setRecordLoading(true);
+    setRecordError(false);
     setRecordModalOpen(true);
 
     try {
       const data = await patientService.getRecordByAppointment(record.id);
+      if (request !== recordRequest.current) return;
       if (data) {
         setExistingRecord(data);
         recordForm.setFieldsValue({
@@ -78,13 +76,15 @@ const PsyAppointment: React.FC = () => {
         });
       }
     } catch {
-      console.error('โหลดบันทึกไม่สำเร็จ');
+      if (request === recordRequest.current) setRecordError(true);
+    } finally {
+      if (request === recordRequest.current) setRecordLoading(false);
     }
   };
 
   // บันทึกการรักษา
   const handleSaveRecord = async (values: any) => {
-    if (!selectedAppt) return;
+    if (!selectedAppt || recordLoading || recordError) return;
     setLoading(true);
     try {
       await patientService.addRecord({
@@ -226,8 +226,9 @@ const PsyAppointment: React.FC = () => {
   const otherAppts = appointments.filter(a => a.status !== 'pending');
 
   return (
-    <div>
-      <Title level={2}>จัดการนัดหมาย</Title>
+    <div className="psy-page">
+      <header className="psy-page-header"><Title level={2}>จัดการนัดหมาย</Title></header>
+      <DashboardSection label="นัดหมาย" resource={appointmentResource}>
 
       <Card
         title={
@@ -238,17 +239,21 @@ const PsyAppointment: React.FC = () => {
         }
         style={{ marginBottom: 24 }}
       >
-        <Table dataSource={pendingAppts} columns={columns} rowKey="id"
+        <Text className="psy-scroll-hint">เลื่อนตารางแนวนอนเพื่อดูรายละเอียดและปุ่มจัดการ</Text>
+        <Table className="psy-table" scroll={{ x: 880 }} pagination={{ pageSize: 10, showSizeChanger: false }} dataSource={pendingAppts} columns={columns} rowKey="id"
           locale={{ emptyText: 'ไม่มีรายการรออนุมัติ' }} />
       </Card>
 
       <Card title="ประวัติการนัดหมายทั้งหมด">
-        <Table dataSource={otherAppts} columns={columns} rowKey="id"
+        <Text className="psy-scroll-hint">เลื่อนตารางแนวนอนเพื่อดูรายละเอียดและปุ่มจัดการ</Text>
+        <Table className="psy-table" scroll={{ x: 880 }} pagination={{ pageSize: 10, showSizeChanger: false }} dataSource={otherAppts} columns={columns} rowKey="id"
           locale={{ emptyText: 'ไม่มีประวัติการนัดหมาย' }} />
       </Card>
+      </DashboardSection>
 
       {/* Modal อัพเดทสถานะ */}
       <Modal
+        className="psy-dialog"
         title="อัพเดทสถานะนัดหมาย"
         open={statusModalOpen}
         onCancel={() => setStatusModalOpen(false)}
@@ -257,10 +262,10 @@ const PsyAppointment: React.FC = () => {
         cancelText="ยกเลิก"
         confirmLoading={loading}
       >
-        <Form form={statusForm} layout="vertical" onFinish={handleUpdateStatus}>
+        <Form form={statusForm} layout="vertical" onFinish={handleUpdateStatus} scrollToFirstError={{ focus: true }}>
           <Form.Item name="status" label="สถานะใหม่"
             rules={[{ required: true, message: 'กรุณาเลือกสถานะ' }]}>
-            <select style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d9d9d9' }}>
+            <select className="psy-native-select">
               <option value="">เลือกสถานะ</option>
               <option value="approved">อนุมัติ</option>
               <option value="rejected">ปฏิเสธ</option>
@@ -275,19 +280,19 @@ const PsyAppointment: React.FC = () => {
 
       {/* Modal บันทึกการรักษา */}
       <Modal
+        className="psy-dialog"
         title={`บันทึกการรักษา — ${selectedAppt?.first_name} ${selectedAppt?.last_name}`}
         open={recordModalOpen}
-        onCancel={() => setRecordModalOpen(false)}
+        onCancel={() => { ++recordRequest.current; setRecordModalOpen(false); }}
         footer={null}
         width={650}
       >
-        {existingRecord && (
-          <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, padding: 12, marginBottom: 16 }}>
-            <Text type="success">✅ มีบันทึกการรักษาครั้งนี้แล้ว (สามารถแก้ไขได้)</Text>
-          </div>
-        )}
+        {recordLoading && <div className="psy-loading" role="status"><Spin size="small" />กำลังโหลดบันทึกการรักษา…</div>}
+        {recordError && <Alert className="psy-notice" type="error" showIcon title="โหลดบันทึกการรักษาไม่สำเร็จ"
+          action={<Button onClick={() => selectedAppt && handleOpenRecordModal(selectedAppt)}>ลองอีกครั้ง</Button>} />}
+        {existingRecord && <Alert className="psy-notice" type="success" showIcon title="มีบันทึกการรักษาครั้งนี้แล้ว (สามารถแก้ไขได้)" />}
 
-        <Form form={recordForm} layout="vertical" onFinish={handleSaveRecord}>
+        <Form form={recordForm} layout="vertical" onFinish={handleSaveRecord} disabled={recordLoading || recordError || loading}>
           <Form.Item name="symptoms" label="อาการ">
             <TextArea rows={2} placeholder="อาการของผู้ป่วย..." />
           </Form.Item>
@@ -301,7 +306,7 @@ const PsyAppointment: React.FC = () => {
             <TextArea rows={2} placeholder="ผลลัพธ์หลังการรักษา..." />
           </Form.Item>
 
-          <Row gutter={8} justify="end">
+          <Row className="psy-form-actions" gutter={8} justify="end">
             <Col>
               <Button onClick={() => {
                 setRecordModalOpen(false);
@@ -323,6 +328,7 @@ const PsyAppointment: React.FC = () => {
 
       {/* Modal นัดครั้งถัดไป */}
       <Modal
+        className="psy-dialog"
         title="นัดหมายครั้งถัดไป"
         open={nextApptModalOpen}
         onCancel={() => {
@@ -334,8 +340,9 @@ const PsyAppointment: React.FC = () => {
         okText="นัดหมาย"
         cancelText="ยกเลิก"
         confirmLoading={loading}
+        okButtonProps={{ disabled: slotsLoading || availableSlots.length === 0 }}
       >
-        <Form form={nextApptForm} layout="vertical" onFinish={handleNextAppointment}>
+        <Form form={nextApptForm} layout="vertical" onFinish={handleNextAppointment} scrollToFirstError={{ focus: true }}>
           <Form.Item name="slot_id" label="วันเวลาที่ว่างตามตารางงาน"
             rules={[{ required: true, message: 'กรุณาเลือกวันเวลาที่ว่าง' }]}>
             <Select

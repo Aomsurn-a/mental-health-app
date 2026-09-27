@@ -19,6 +19,7 @@ import {
   HeartOutlined,
 } from '@ant-design/icons';
 import { AuthContext } from '../context/AuthContext';
+import '../components/psychologist-polish.css';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -97,7 +98,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {/* Logo */}
         <div className="app-brand">
           <HeartOutlined className="app-brand-icon" aria-hidden="true" />
-          {!collapsed && <span>สุขภาพใจ</span>}
+          {!collapsed && <span>MindEase</span>}
         </div>
 
         {/* Menu */}
