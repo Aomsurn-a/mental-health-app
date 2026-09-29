@@ -59,15 +59,52 @@ const aiChatController = {
       const [history] = await db.query(
         'SELECT role,content FROM ai_chat_messages WHERE user_id = ? AND active_flag = 1 ORDER BY id DESC LIMIT 20', [userId]
       );
+      history.reverse();
+      // Run both requests together; capture rejection while alert persistence runs.
+      const replyPending = provider.reply(history, SYSTEM_PROMPT).then(
+        value => ({ value }), error => ({ error })
+      );
+      let screening = { status: 'existing_alert' };
+      if (!userMessage.risk_flag) {
+        try { screening = { status: 'completed', ...await provider.classifyRisk(history) }; }
+        catch (error) {
+          screening = { status: 'unavailable' };
+          console.error('AI screening:', { code: error.code || 'AI_PROVIDER_ERROR' });
+        }
+        if (screening.needsReview) {
+          const conn = await db.getConnection();
+          try {
+            await conn.beginTransaction();
+            const [updated] = await conn.query(
+              'UPDATE ai_chat_messages SET risk_flag = 1 WHERE id = ? AND user_id = ? AND risk_flag = 0',
+              [userMessage.id, userId]
+            );
+            if (updated.affectedRows) {
+              const recipient = await riskRecipient(conn, userId);
+              const [alert] = await conn.query(
+                `INSERT INTO complaints(sender_id,target_id,type,detail,created_by,updated_by)
+                 VALUES(?,?,'ai_risk_alert',?,?,?)`,
+                [userId, recipient, userMessage.content, userId, userId]
+              );
+              riskAlert = { id: alert.insertId, status: recipient ? 'queued_for_psychologist' : 'unassigned' };
+            }
+            await conn.commit();
+            userMessage.risk_flag = 1;
+          } catch (error) { await conn.rollback(); throw error; }
+          finally { conn.release(); }
+        }
+      }
       let assistantText;
       try {
-        assistantText = await provider.reply(history.reverse(), SYSTEM_PROMPT);
+        const result = await replyPending;
+        if (result.error) throw result.error;
+        assistantText = result.value;
       } catch (error) {
         console.error('AI provider:', { code: error.code || 'AI_PROVIDER_ERROR', status: error.upstreamStatus });
         return res.status(error.code === 'AI_TIMEOUT' ? 504 : 502).json({
           code: error.code || 'AI_PROVIDER_ERROR',
           message: 'บันทึกข้อความแล้ว แต่ AI ยังตอบกลับไม่ได้ กรุณาลองขอคำตอบอีกครั้ง หรือแชทกับนักจิตวิทยา',
-          data: { user_message: userMessage, risk_alert: riskAlert },
+          data: { user_message: userMessage, risk_alert: riskAlert, screening },
         });
       }
       const [insert] = await db.query(
@@ -78,6 +115,7 @@ const aiChatController = {
         user_message: userMessage,
         assistant_message: { id: insert.insertId, role: 'assistant', content: assistantText, created_at: new Date() },
         risk_alert: riskAlert,
+        screening,
       } });
     } catch (error) {
       console.error('AI chat:', error.code || error.name);

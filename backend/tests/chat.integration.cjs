@@ -13,6 +13,7 @@ const bcrypt = require('bcryptjs');
 require('dotenv').config({ path: path.join(__dirname,'../.env'), quiet:true });
 const original = { base:process.env.MAXPLUS_BASE_URL, path:process.env.MAXPLUS_API_PATH, key:process.env.MAXPLUS_API_KEY };
 const sourceDatabase = process.env.DB_NAME;
+const configuredModel = process.env.MAXPLUS_MODEL?.trim() || 'claude-sonnet-5';
 const testDatabase = 'mental_chat_test_' + Date.now();
 const results = [];
 let providerMode='success', received, browser, appServer, providerServer, pool, admin;
@@ -34,11 +35,17 @@ const listen = server => new Promise(resolve=>server.listen(0,'127.0.0.1',()=>re
    let raw=''; for await(const part of req) raw+=part;
    received=JSON.parse(raw);
    assert.equal(req.url,'/v1/messages');
-   assert.equal(received.model,'claude-sonnet-4-5');
-   assert.match(received.system,/ไม่เข้าข้างจนเกินไป/);
+   assert.equal(received.model,configuredModel);
+   const screening = received.system.startsWith('RISK_CLASSIFIER_V1');
+   if (!screening) assert.match(received.system,/ไม่เข้าข้างจนเกินไป/);
+   const context = screening ? JSON.parse(received.messages[0].content) : received.messages;
+   assert.ok(context.length <= 20);
+   assert.ok(context.every(m => Object.keys(m).sort().join(',') === 'content,role'));
    await new Promise(resolve=>setTimeout(resolve,120));
    res.setHeader('Content-Type','application/json');
    if(providerMode==='failure'){res.statusCode=503;res.end(JSON.stringify({error:{type:'service_unavailable'}}));}
+   else if (!screening && providerMode==='reply-failure') {res.statusCode=503;res.end('{}');}
+   else if (screening) res.end(JSON.stringify({content:[{type:'text',text:providerMode==='invalid-screening' ? '{"self_harm":"false"}' : JSON.stringify({self_harm:context.at(-1).content==='คืนนี้จะหายไปตลอดกาล',harm_others:false,imminent:false,uncertain:context.at(-1).content==='ไม่แน่ใจว่าจะคุมตัวเองไหว'})}]}));
    else res.end(JSON.stringify({content:[{type:'thinking',thinking:'ignored'},{type:'text',text:'ได้ยินว่าคุณกำลังรู้สึกหนักใจ'},{type:'text',text:'อยากเล่าให้ฟังไหมว่าเกิดอะไรขึ้น'}]}));
   });
   process.env.MAXPLUS_BASE_URL=await listen(providerServer);
@@ -119,6 +126,46 @@ const listen = server => new Promise(resolve=>server.listen(0,'127.0.0.1',()=>re
   const concurrent=await Promise.all([1,2].map(()=>request('/ai-chat/send',tokens.patient,'POST',{message:'concurrency fixture'})));
   assert.deepEqual(concurrent.map(x=>x.status).sort(),[201,409]);
   record('concurrent AI send protection');
+  providerMode='reply-failure';
+  r=await request('/ai-chat/send',tokens.patient,'POST',{message:'คืนนี้จะหายไปตลอดกาล'});
+  assert.equal(r.status,502);
+  assert.equal(r.body.data.screening.status,'completed');
+  assert.equal(r.body.data.user_message.risk_flag,1);
+  const semanticId=r.body.data.user_message.id;
+  const semanticAlert=r.body.data.risk_alert.id;
+  assert.ok((await request('/complaint/ai-alerts',tokens.psychologist)).body.some(a=>a.id===semanticAlert));
+  const [beforeRetry]=await pool.query("SELECT COUNT(*) n FROM complaints WHERE sender_id=? AND type='ai_risk_alert'",[ids.patient]);
+  providerMode='success';
+  r=await request('/ai-chat/send',tokens.patient,'POST',{message:'คืนนี้จะหายไปตลอดกาล',message_id:semanticId});
+  assert.equal(r.status,201);
+  const [afterRetry]=await pool.query("SELECT COUNT(*) n FROM complaints WHERE sender_id=? AND type='ai_risk_alert'",[ids.patient]);
+  assert.equal(afterRetry[0].n,beforeRetry[0].n);
+  record('semantic risk alerts survive reply failure and retry without duplication');
+  r=await request('/ai-chat/send',tokens.patient,'POST',{message:'ไม่แน่ใจว่าจะคุมตัวเองไหว'});
+  assert.equal(r.status,201);assert.equal(r.body.data.screening.uncertain,true);
+  assert.equal(r.body.data.risk_alert.status,'queued_for_psychologist');
+  record('uncertain safety classification routes for human review');
+  providerMode='invalid-screening';
+  r=await request('/ai-chat/send',tokens.patient,'POST',{message:'วันนี้อากาศดี'});
+  assert.equal(r.status,201);assert.equal(r.body.data.screening.status,'unavailable');
+  assert.equal(r.body.data.risk_alert,null);
+  record('invalid classification is unavailable, never treated as a safe classification');
+  providerMode='failure';
+  r=await request('/ai-chat/send',tokens.patient,'POST',{message:'ทดสอบบริการล่ม'});
+  assert.equal(r.status,502);assert.equal(r.body.data.screening.status,'unavailable');
+  providerMode='success';
+  record('provider outage preserves message and reports screening unavailable');
+  for (let i=0;i<24;i++) await pool.query(
+    "INSERT INTO ai_chat_messages(user_id,role,content,created_by,updated_by) VALUES(?,'user',?,?,?)",
+    [ids.patient,'context-boundary-'+i,ids.patient,ids.patient]
+  );
+  r=await request('/ai-chat/send',tokens.patient,'POST',{message:'latest-context-boundary'});
+  assert.equal(r.status,201);
+  const sentContext=received.system.startsWith('RISK_CLASSIFIER_V1') ? JSON.parse(received.messages[0].content) : received.messages;
+  assert.equal(sentContext.length,20);
+  assert.equal(sentContext[0].content,'context-boundary-5');
+  assert.equal(sentContext.at(-1).content,'latest-context-boundary');
+  record('only latest 20 messages sent, ordered oldest to newest, without account fields');
 
   if(process.argv.includes('--browser')){
    const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
@@ -171,12 +218,22 @@ const listen = server => new Promise(resolve=>server.listen(0,'127.0.0.1',()=>re
    const login=await request('/auth/login',null,'POST',{email:'livefixture@example.test',password:secret});
    r=await request('/ai-chat/send',login.body.token,'POST',{message:'นี่เป็นข้อความทดสอบระบบ วันนี้รู้สึกเครียดกับการสอบ อยากให้ช่วยรับฟัง'});
    if(r.status!==201){
-    results.push({name:'live MaxPlus Sonnet 4.5',pass:false,status:r.status,code:r.body.code});
+    results.push({name:'live MaxPlus '+configuredModel,pass:false,status:r.status,code:r.body.code});
     console.log('BLOCKED live MaxPlus: '+r.status+' '+r.body.code);
     process.exitCode=2;
    }else{
     assert.ok(r.body.data.assistant_message.content);
-    record('live MaxPlus Sonnet 4.5 response');
+    assert.equal(r.body.data.screening.status,'completed');
+    assert.equal(r.body.data.screening.needsReview,false);
+    record('live MaxPlus '+configuredModel+' response');
+    await request('/chat/send',login.body.token,'POST',{receiver_id:ids.psychologist,message:'เริ่มบทสนทนาจำลอง'});
+    r=await request('/ai-chat/send',login.body.token,'POST',{message:'คืนนี้ตั้งใจจะหายไปจากโลกนี้ตลอดกาล เตรียมทุกอย่างไว้แล้ว ไม่อยากให้ใครมาห้าม'});
+    assert.equal(r.status,201);
+    assert.equal(r.body.data.screening.status,'completed');
+    assert.equal(r.body.data.screening.needsReview,true);
+    assert.equal(r.body.data.risk_alert.status,'queued_for_psychologist');
+    assert.ok((await request('/complaint/ai-alerts',tokens.psychologist)).body.some(a=>a.id===r.body.data.risk_alert.id));
+    record('live MaxPlus indirect Thai risk classification and psychologist alert delivery');
    }
   }
  } catch(error){console.error(error.stack);process.exitCode=1;}
