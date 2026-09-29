@@ -1,162 +1,114 @@
 const db = require('../config/db');
+const { canChat, validId } = require('../services/chatAccess');
+
+async function checkPartner(req, res, id) {
+  if (!validId(id)) { res.status(400).json({ message: 'กรุณาเลือกผู้รับข้อความ' }); return false; }
+  if (!await canChat(req.user.id, Number(id))) {
+    res.status(403).json({ message: 'ไม่สามารถสนทนากับบัญชีนี้ได้ กรุณาตรวจสอบผู้รับหรือสถานะบัญชี' });
+    return false;
+  }
+  return true;
+}
 
 const chatController = {
-
-  // ดึงรายชื่อคนที่คุยด้วยได้ (user → นักจิต, นักจิต → user ที่เคยนัด)
   getChatList: async (req, res) => {
     try {
-      const user_id = req.user.id;
-      const role = req.user.role;
-
-      let rows;
-
-      if (role === 'user') {
-        [rows] = await db.query(
-          `SELECT DISTINCT u.id, u.first_name, u.last_name, u.email,
-            p.specialty, h.name as hospital_clinic,
-            (SELECT message FROM chat_messages
-             WHERE (sender_id = ? AND receiver_id = u.id)
-             OR (sender_id = u.id AND receiver_id = ?)
-             ORDER BY sent_at DESC LIMIT 1) as last_message,
-            (SELECT sent_at FROM chat_messages
-             WHERE (sender_id = ? AND receiver_id = u.id)
-             OR (sender_id = u.id AND receiver_id = ?)
-             ORDER BY sent_at DESC LIMIT 1) as last_message_at,
-            (SELECT COUNT(*) FROM chat_messages
-             WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count,
-            (SELECT sent_at FROM chat_messages
-             WHERE sender_id = ? AND receiver_id = u.id
-             ORDER BY sent_at DESC LIMIT 1) as my_last_sent_at,
-            (SELECT is_read FROM chat_messages
-             WHERE sender_id = ? AND receiver_id = u.id
-             ORDER BY sent_at DESC LIMIT 1) as my_last_sent_read
-          FROM psychologists p
-          JOIN users u ON p.user_id = u.id
-          LEFT JOIN hospitals h ON p.hospital_id = h.id
-          WHERE p.active_flag = 1 AND u.status = 'active'
-          ORDER BY last_message_at DESC`,
-          [user_id, user_id, user_id, user_id, user_id, user_id, user_id]
-        );
-      } else if (role === 'psychologist') {
-        // นักจิตเห็น user ที่เคยนัดด้วย
-        [rows] = await db.query(
-          `SELECT DISTINCT u.id, u.first_name, u.last_name, u.email,
-                  (SELECT message FROM chat_messages 
-                   WHERE (sender_id = ? AND receiver_id = u.id)
-                   OR (sender_id = u.id AND receiver_id = ?)
-                   ORDER BY sent_at DESC LIMIT 1) as last_message,
-                  (SELECT sent_at FROM chat_messages 
-                   WHERE (sender_id = ? AND receiver_id = u.id)
-                   OR (sender_id = u.id AND receiver_id = ?)
-                   ORDER BY sent_at DESC LIMIT 1) as last_message_at,
-                  (SELECT COUNT(*) FROM chat_messages
-                   WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count
-           FROM appointments a
-           JOIN psychologists p ON a.psychologist_id = p.id
-           JOIN users u ON a.user_id = u.id
-           WHERE p.user_id = ? AND a.active_flag = 1
-           GROUP BY u.id, u.first_name, u.last_name, u.email
-           ORDER BY last_message_at DESC`,
-          [user_id, user_id, user_id, user_id, user_id, user_id]
-        );
-      } else {
-        rows = [];
-      }
-
+      const id = req.user.id;
+      const [rows] = await db.query(
+        `SELECT u.id, u.first_name, u.last_name, u.email, p.specialty, h.name AS hospital_clinic,
+          (SELECT m.message FROM chat_messages m WHERE m.active_flag = 1
+            AND ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.sender_id = u.id AND m.receiver_id = ?))
+            ORDER BY m.id DESC LIMIT 1) AS last_message,
+          (SELECT m.sent_at FROM chat_messages m WHERE m.active_flag = 1
+            AND ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.sender_id = u.id AND m.receiver_id = ?))
+            ORDER BY m.id DESC LIMIT 1) AS last_message_at,
+          (SELECT COUNT(*) FROM chat_messages m WHERE m.active_flag = 1
+            AND m.sender_id = u.id AND m.receiver_id = ? AND m.is_read = 0) AS unread_count,
+          (SELECT m.sent_at FROM chat_messages m WHERE m.active_flag = 1
+            AND m.sender_id = ? AND m.receiver_id = u.id ORDER BY m.id DESC LIMIT 1) AS my_last_sent_at,
+          (SELECT m.is_read FROM chat_messages m WHERE m.active_flag = 1
+            AND m.sender_id = ? AND m.receiver_id = u.id ORDER BY m.id DESC LIMIT 1) AS my_last_sent_read
+         FROM users u LEFT JOIN psychologists p ON p.user_id = u.id
+         LEFT JOIN hospitals h ON h.id = p.hospital_id
+         WHERE u.active_flag = 1 AND u.status = 'active'
+           AND ((? = 'user' AND u.role = 'psychologist' AND p.active_flag = 1)
+           OR (? = 'psychologist' AND u.role = 'user' AND (
+             EXISTS (SELECT 1 FROM appointments a JOIN psychologists cp ON cp.id = a.psychologist_id
+                     WHERE cp.user_id = ? AND a.user_id = u.id AND a.active_flag = 1
+                       AND a.status IN ('pending','approved','completed'))
+             OR EXISTS (SELECT 1 FROM chat_messages m WHERE m.active_flag = 1
+                        AND ((m.sender_id = ? AND m.receiver_id = u.id)
+                          OR (m.sender_id = u.id AND m.receiver_id = ?)))
+           )))
+         ORDER BY last_message_at DESC, u.id ASC`,
+        [id,id,id,id,id,id,id,req.user.role,req.user.role,id,id,id]
+      );
       res.json(rows);
     } catch (error) {
-      console.error('GetChatList error:', error);
-      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+      console.error('GetChatList:', error.code);
+      res.status(500).json({ message: 'โหลดรายชื่อไม่สำเร็จ กรุณาลองใหม่' });
     }
   },
-
-  // ดึงประวัติการสนทนา
   getMessages: async (req, res) => {
     try {
-      const user_id = req.user.id;
-      const { partner_id } = req.params;
-
+      const partner = Number(req.params.partner_id);
+      if (!await checkPartner(req,res,partner)) return;
       const [rows] = await db.query(
-        `SELECT id, sender_id, receiver_id, message, is_read, sent_at
-         FROM chat_messages
-         WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
-         AND active_flag = 1
-         ORDER BY sent_at ASC`,
-        [user_id, partner_id, partner_id, user_id]
+        `SELECT id,sender_id,receiver_id,message,is_read,sent_at FROM chat_messages
+         WHERE active_flag = 1 AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
+         ORDER BY id ASC`, [req.user.id,partner,partner,req.user.id]
       );
-
-      // Mark as read
       await db.query(
-        `UPDATE chat_messages SET is_read = 1
-         WHERE sender_id = ? AND receiver_id = ? AND is_read = 0`,
-        [partner_id, user_id]
+        'UPDATE chat_messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND active_flag = 1 AND is_read = 0',
+        [partner,req.user.id]
       );
-
       res.json(rows);
     } catch (error) {
-      console.error('GetMessages error:', error);
-      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+      console.error('GetMessages:', error.code);
+      res.status(500).json({ message: 'โหลดข้อความไม่สำเร็จ กรุณาลองใหม่' });
     }
   },
-
-  // ส่งข้อความ
   sendMessage: async (req, res) => {
     try {
-      const sender_id = req.user.id;
       const { receiver_id, message } = req.body;
-
+      if (typeof message !== 'string' || !message.trim() || message.length > 5000) {
+        return res.status(400).json({ message: 'กรุณาพิมพ์ข้อความไม่เกิน 5,000 ตัวอักษร' });
+      }
+      if (!await checkPartner(req,res,receiver_id)) return;
       const [result] = await db.query(
-        `INSERT INTO chat_messages (sender_id, receiver_id, message, created_by, updated_by)
-         VALUES (?, ?, ?, ?, ?)`,
-        [sender_id, receiver_id, message, sender_id, sender_id]
+        'INSERT INTO chat_messages(sender_id,receiver_id,message,created_by,updated_by) VALUES(?,?,?,?,?)',
+        [req.user.id,Number(receiver_id),message.trim(),req.user.id,req.user.id]
       );
-
-      res.status(201).json({
-        message: 'ส่งข้อความสำเร็จ',
-        data: {
-          id: result.insertId,
-          sender_id,
-          receiver_id,
-          message,
-          is_read: 0,
-          sent_at: new Date()
-        }
-      });
+      const [rows] = await db.query(
+        'SELECT id,sender_id,receiver_id,message,is_read,sent_at FROM chat_messages WHERE id = ?', [result.insertId]
+      );
+      res.status(201).json({ message: 'ส่งข้อความสำเร็จ', data: rows[0] });
     } catch (error) {
-      console.error('SendMessage error:', error);
-      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+      console.error('SendMessage:', error.code);
+      res.status(500).json({ message: 'ส่งข้อความไม่สำเร็จ กรุณาลองใหม่ ข้อความยังอยู่ในช่องพิมพ์' });
     }
   },
-
-  // ดึงข้อความใหม่ (สำหรับ polling)
   getNewMessages: async (req, res) => {
     try {
-      const user_id = req.user.id;
-      const { partner_id, last_id } = req.query;
-
+      const partner = Number(req.query.partner_id);
+      const lastId = Number(req.query.last_id || 0);
+      if (!Number.isSafeInteger(lastId) || lastId < 0) return res.status(400).json({ message: 'ตำแหน่งข้อความไม่ถูกต้อง' });
+      if (!await checkPartner(req,res,partner)) return;
       const [rows] = await db.query(
-        `SELECT id, sender_id, receiver_id, message, is_read, sent_at
-         FROM chat_messages
-         WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
-         AND id > ? AND active_flag = 1
-         ORDER BY sent_at ASC`,
-        [user_id, partner_id, partner_id, user_id, last_id || 0]
+        `SELECT id,sender_id,receiver_id,message,is_read,sent_at FROM chat_messages
+         WHERE active_flag = 1 AND id > ?
+           AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
+         ORDER BY id ASC`, [lastId,req.user.id,partner,partner,req.user.id]
       );
-
-      if (rows.length > 0) {
-        await db.query(
-          `UPDATE chat_messages SET is_read = 1
-           WHERE sender_id = ? AND receiver_id = ? AND is_read = 0`,
-          [partner_id, user_id]
-        );
-      }
-
+      await db.query(
+        'UPDATE chat_messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND active_flag = 1 AND is_read = 0',
+        [partner,req.user.id]
+      );
       res.json(rows);
     } catch (error) {
-      console.error('GetNewMessages error:', error);
-      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+      console.error('GetNewMessages:', error.code);
+      res.status(500).json({ message: 'โหลดข้อความใหม่ไม่สำเร็จ กรุณาลองใหม่' });
     }
   },
 };
-
 module.exports = chatController;

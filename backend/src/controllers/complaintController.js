@@ -93,14 +93,14 @@ const complaintController = {
                 u.first_name, u.last_name
          FROM complaints c
          JOIN users u ON u.id = c.sender_id
-         WHERE c.type = 'ai_risk_alert' AND c.status != 'resolved' AND c.active_flag = 1
-         AND c.sender_id IN (
+         WHERE c.type = 'ai_risk_alert' AND c.status = 'pending' AND c.active_flag = 1
+         AND (c.target_id = ? OR (c.target_id IS NULL AND c.sender_id IN (
            SELECT a.user_id FROM appointments a
            JOIN psychologists p ON a.psychologist_id = p.id
            WHERE p.user_id = ? AND a.active_flag = 1
-         )
+         )))
          ORDER BY c.created_at DESC`,
-        [psychologist_user_id]
+        [psychologist_user_id, psychologist_user_id]
       );
       res.json(rows);
     } catch (error) {
@@ -115,17 +115,16 @@ const complaintController = {
       const psychologist_user_id = req.user.id;
       const { id } = req.params;
 
-      await db.query(
-        `UPDATE complaints c
-         JOIN (
-           SELECT a.user_id FROM appointments a
-           JOIN psychologists p ON a.psychologist_id = p.id
-           WHERE p.user_id = ? AND a.active_flag = 1
-         ) patients ON patients.user_id = c.sender_id
-         SET c.status = 'in_progress', c.updated_by = ?
-         WHERE c.id = ? AND c.type = 'ai_risk_alert'`,
-        [psychologist_user_id, psychologist_user_id, id]
+      const [result] = await db.query(
+        `UPDATE complaints c SET c.status = 'in_progress', c.updated_by = ?
+         WHERE c.id = ? AND c.type = 'ai_risk_alert' AND c.active_flag = 1
+           AND (c.target_id = ? OR (c.target_id IS NULL AND c.sender_id IN (
+             SELECT a.user_id FROM appointments a JOIN psychologists p ON p.id = a.psychologist_id
+             WHERE p.user_id = ? AND a.active_flag = 1
+           )))`,
+        [psychologist_user_id, id, psychologist_user_id, psychologist_user_id]
       );
+      if (!result.affectedRows) return res.status(404).json({ message: 'ไม่พบการแจ้งเตือนในความดูแลของคุณ' });
 
       res.json({ message: 'รับทราบเรียบร้อย' });
     } catch (error) {

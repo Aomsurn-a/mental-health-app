@@ -68,9 +68,28 @@ export const themeAdmin: ThemeConfig = {
   token: {
     ...sharedTokens,
     colorPrimary: '#166534',
+    colorPrimaryHover: '#14532D',
+    colorPrimaryActive: '#14532D',
+    colorPrimaryBg: '#F0FDF4',
+    colorBgLayout: '#F6F8F7',
+    colorTextSecondary: '#52616B',
+    colorTextDescription: '#52616B',
+    colorTextPlaceholder: '#52616B',
+    colorBorder: '#D1D5DB',
+    colorBorderSecondary: '#D1D5DB',
+    colorLink: '#166534',
+    colorLinkHover: '#14532D',
+    colorSuccess: '#16805C',
+    colorWarning: '#B45309',
+    colorError: '#C2413B',
     colorBgContainer: '#FFFFFF',
     colorText: '#172B3A',
     fontFamily,
+  },
+  components: {
+    Menu: { itemSelectedBg: '#F0FDF4', itemSelectedColor: '#166534', itemHeight: 44 },
+    Button: { primaryShadow: 'none', controlHeightSM: 44 },
+    Table: { headerBg: '#F6F8F7', headerColor: '#172B3A', cellPaddingBlock: 16 },
   },
 };
 

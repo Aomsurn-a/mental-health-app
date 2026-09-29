@@ -1,183 +1,102 @@
 const db = require('../config/db');
-
-const MAXPLUS_BASE_URL = process.env.MAXPLUS_BASE_URL || 'https://api.maxplus-ai.cc';
-
-const RISK_KEYWORDS = ['อยากตาย', 'ทำร้ายตัวเอง', 'ฆ่าตัวตาย', 'สิ้นหวัง'];
-
-const SYSTEM_PROMPT = `คุณคือผู้ฟังที่ใจดีและเห็นอกเห็นใจ ไม่ใช่นักจิตวิทยาหรือแพทย์
-ห้ามแนะนำตัวว่าเป็น AI ด้านโค้ดหรือเทคนิคใดๆ เด็ดขาด
-หน้าที่ของคุณคือรับฟังผู้ใช้ที่กำลังมีความเครียดหรือความรู้สึกไม่สบายใจ
-ใช้คำพูดอบอุ่น เป็นกันเอง แสดงความเข้าใจและเห็นอกเห็นใจ
-ห้ามวินิจฉัยโรคหรือให้คำแนะนำทางการแพทย์
-ให้กำลังใจและชวนพูดคุยอย่างเป็นธรรมชาติ เหมือนเพื่อนที่รับฟัง
-เมื่อเหมาะสม แนะนำให้ผู้ใช้พูดคุยกับนักจิตวิทยาจริงในระบบเพื่อความช่วยเหลือที่ตรงจุด
-ถ้าผู้ใช้แสดงความเสี่ยงทำร้ายตัวเองหรือฆ่าตัวตาย ให้แสดงความห่วงใยทันที
-และแนะนำสายด่วนสุขภาพจิต 1323 หรือ 1669`;
-
-const detectRisk = (text) => RISK_KEYWORDS.some((kw) => text.includes(kw));
+const provider = require('../services/aiProvider');
+const { detectRisk, SYSTEM_PROMPT, riskRecipient } = require('../services/chatSafety');
+const complaintController = require('./complaintController');
+const pendingUsers = new Set();
 
 const aiChatController = {
-  // ส่งข้อความหา AI
   sendMessage: async (req, res) => {
+    const userId = req.user.id;
+    if (req.user.role !== 'user') return res.status(403).json({ message: 'AI chat สำหรับผู้รับบริการเท่านั้น' });
+    const text = req.body.message;
+    if (typeof text !== 'string' || !text.trim() || text.length > 5000) {
+      return res.status(400).json({ message: 'กรุณาพิมพ์ข้อความไม่เกิน 5,000 ตัวอักษร' });
+    }
+    if (pendingUsers.has(userId)) return res.status(409).json({ message: 'กำลังรอคำตอบของข้อความก่อนหน้า' });
+    pendingUsers.add(userId);
+    let userMessage;
+    let riskAlert = null;
     try {
-      const user_id = req.user.id;
-      const { message: userText } = req.body;
-
-      if (!userText || !userText.trim()) {
-        return res.status(400).json({ message: 'กรุณาระบุข้อความ' });
-      }
-
-      const riskDetected = detectRisk(userText);
-
-      const [userInsert] = await db.query(
-        `INSERT INTO ai_chat_messages (user_id, role, content, risk_flag, created_by, updated_by)
-         VALUES (?, 'user', ?, ?, ?, ?)`,
-        [user_id, userText, riskDetected ? 1 : 0, user_id, user_id]
-      );
-
-      if (riskDetected) {
-        await db.query(
-          `INSERT INTO complaints (sender_id, target_id, type, detail, created_by, updated_by)
-           VALUES (?, NULL, 'ai_risk_alert', ?, ?, ?)`,
-          [user_id, `AI risk alert: "${userText}"`, user_id, user_id]
+      if (req.body.message_id !== undefined) {
+        const [rows] = await db.query(
+          `SELECT id,role,content,risk_flag,created_at FROM ai_chat_messages
+           WHERE id = ? AND user_id = ? AND role = 'user' AND active_flag = 1`,
+          [req.body.message_id,userId]
         );
+        userMessage = rows[0];
+        if (!userMessage || userMessage.content !== text.trim()) {
+          return res.status(400).json({ message: 'ไม่พบข้อความที่ต้องการลองส่งอีกครั้ง' });
+        }
+        const [later] = await db.query(
+          'SELECT id FROM ai_chat_messages WHERE user_id = ? AND active_flag = 1 AND id > ? LIMIT 1',
+          [userId,userMessage.id]
+        );
+        if (later.length) return res.status(409).json({ message: 'มีข้อความใหม่แล้ว กรุณาโหลดประวัติล่าสุด' });
+      } else {
+        const conn = await db.getConnection();
+        try {
+          await conn.beginTransaction();
+          const risk = detectRisk(text);
+          const [insert] = await conn.query(
+            "INSERT INTO ai_chat_messages(user_id,role,content,risk_flag,created_by,updated_by) VALUES(?,'user',?,?,?,?)",
+            [userId,text.trim(),risk ? 1 : 0,userId,userId]
+          );
+          userMessage = { id: insert.insertId, role: 'user', content: text.trim(), risk_flag: risk ? 1 : 0, created_at: new Date() };
+          if (risk) {
+            const recipient = await riskRecipient(conn,userId);
+            const [alert] = await conn.query(
+              `INSERT INTO complaints(sender_id,target_id,type,detail,created_by,updated_by)
+               VALUES(?,?,'ai_risk_alert',?,?,?)`, [userId,recipient,text.trim(),userId,userId]
+            );
+            riskAlert = { id: alert.insertId, status: recipient ? 'queued_for_psychologist' : 'unassigned' };
+          }
+          await conn.commit();
+        } catch (error) {
+          await conn.rollback();
+          throw error;
+        } finally { conn.release(); }
       }
-
-      const [historyRows] = await db.query(
-        `SELECT role, content FROM ai_chat_messages
-         WHERE user_id = ? AND active_flag = 1
-         ORDER BY created_at DESC LIMIT 10`,
-        [user_id]
+      const [history] = await db.query(
+        'SELECT role,content FROM ai_chat_messages WHERE user_id = ? AND active_flag = 1 ORDER BY id DESC LIMIT 20', [userId]
       );
-      const historyForApi = historyRows.reverse().map((r) => ({ role: r.role, content: r.content }));
-
       let assistantText;
       try {
-        const response = await fetch(`${MAXPLUS_BASE_URL}/v1/messages`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.MAXPLUS_API_KEY}`,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 1024,
-            system: SYSTEM_PROMPT,
-            messages: historyForApi,
-          }),
+        assistantText = await provider.reply(history.reverse(), SYSTEM_PROMPT);
+      } catch (error) {
+        console.error('AI provider:', { code: error.code || 'AI_PROVIDER_ERROR', status: error.upstreamStatus });
+        return res.status(error.code === 'AI_TIMEOUT' ? 504 : 502).json({
+          code: error.code || 'AI_PROVIDER_ERROR',
+          message: 'บันทึกข้อความแล้ว แต่ AI ยังตอบกลับไม่ได้ กรุณาลองขอคำตอบอีกครั้ง หรือแชทกับนักจิตวิทยา',
+          data: { user_message: userMessage, risk_alert: riskAlert },
         });
-
-        if (!response.ok) {
-          throw new Error(`MaxPlus API error: ${response.status}`);
-        }
-
-        const result = await response.json();
-        assistantText = result?.content?.[0]?.text;
-        if (!assistantText) {
-          throw new Error('MaxPlus API returned no content');
-        }
-      } catch (apiError) {
-        console.error('MaxPlus API error:', apiError);
-        assistantText = 'ขออภัย ขณะนี้ระบบ AI ไม่สามารถตอบกลับได้ กรุณาลองใหม่อีกครั้ง หรือรอการติดต่อจากนักจิตวิทยา';
       }
-
-      const [assistantInsert] = await db.query(
-        `INSERT INTO ai_chat_messages (user_id, role, content, created_by, updated_by)
-         VALUES (?, 'assistant', ?, ?, ?)`,
-        [user_id, assistantText, user_id, user_id]
+      const [insert] = await db.query(
+        "INSERT INTO ai_chat_messages(user_id,role,content,created_by,updated_by) VALUES(?,'assistant',?,?,?)",
+        [userId,assistantText,userId,userId]
       );
-
-      res.status(201).json({
-        message: 'ส่งข้อความสำเร็จ',
-        data: {
-          user_message: {
-            id: userInsert.insertId,
-            role: 'user',
-            content: userText,
-            risk_flag: riskDetected ? 1 : 0,
-            created_at: new Date(),
-          },
-          assistant_message: {
-            id: assistantInsert.insertId,
-            role: 'assistant',
-            content: assistantText,
-            created_at: new Date(),
-          },
-        },
-      });
+      res.status(201).json({ message: 'ส่งข้อความสำเร็จ', data: {
+        user_message: userMessage,
+        assistant_message: { id: insert.insertId, role: 'assistant', content: assistantText, created_at: new Date() },
+        risk_alert: riskAlert,
+      } });
     } catch (error) {
-      console.error('AiChat sendMessage error:', error);
-      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
-    }
+      console.error('AI chat:', error.code || error.name);
+      res.status(500).json({ message: 'ส่งข้อความไม่สำเร็จ กรุณาลองใหม่' });
+    } finally { pendingUsers.delete(userId); }
   },
-
-  // ดึงประวัติแชท AI ของตัวเอง
-  getHistory: async (req, res) => {
+  getHistory: async (req,res) => {
     try {
-      const user_id = req.user.id;
       const [rows] = await db.query(
-        `SELECT id, role, content, risk_flag, created_at
-         FROM ai_chat_messages
-         WHERE user_id = ? AND active_flag = 1
-         ORDER BY created_at ASC`,
-        [user_id]
+        'SELECT id,role,content,risk_flag,created_at FROM ai_chat_messages WHERE user_id = ? AND active_flag = 1 ORDER BY id ASC', [req.user.id]
       );
       res.json(rows);
     } catch (error) {
-      console.error('AiChat getHistory error:', error);
-      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+      console.error('AI history:', error.code);
+      res.status(500).json({ message: 'โหลดประวัติไม่สำเร็จ กรุณาลองใหม่' });
     }
   },
-
-  // นักจิต: ดึงรายการแจ้งเตือนความเสี่ยงของผู้ป่วยในความดูแล
-  getRiskAlerts: async (req, res) => {
-    try {
-      const psychologist_user_id = req.user.id;
-      const [rows] = await db.query(
-        `SELECT m.id, m.user_id, u.first_name, u.last_name, m.content, m.created_at
-         FROM ai_chat_messages m
-         JOIN users u ON u.id = m.user_id
-         WHERE m.risk_flag = 1 AND m.acknowledged_at IS NULL AND m.active_flag = 1
-         AND m.user_id IN (
-           SELECT a.user_id FROM appointments a
-           JOIN psychologists p ON a.psychologist_id = p.id
-           WHERE p.user_id = ? AND a.active_flag = 1
-         )
-         ORDER BY m.created_at DESC`,
-        [psychologist_user_id]
-      );
-      res.json(rows);
-    } catch (error) {
-      console.error('AiChat getRiskAlerts error:', error);
-      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
-    }
-  },
-
-  // นักจิต: รับทราบการแจ้งเตือนความเสี่ยง
-  acknowledgeRiskAlert: async (req, res) => {
-    try {
-      const psychologist_user_id = req.user.id;
-      const { id } = req.params;
-
-      await db.query(
-        `UPDATE ai_chat_messages m
-         JOIN (
-           SELECT a.user_id FROM appointments a
-           JOIN psychologists p ON a.psychologist_id = p.id
-           WHERE p.user_id = ? AND a.active_flag = 1
-         ) patients ON patients.user_id = m.user_id
-         SET m.acknowledged_at = NOW()
-         WHERE m.id = ?`,
-        [psychologist_user_id, id]
-      );
-
-      res.json({ message: 'รับทราบการแจ้งเตือนแล้ว' });
-    } catch (error) {
-      console.error('AiChat acknowledgeRiskAlert error:', error);
-      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
-    }
-  },
+  // One alert store and one acknowledgement policy, shared with the dashboard.
+  getRiskAlerts: complaintController.getMyAiAlerts,
+  acknowledgeRiskAlert: complaintController.acknowledgeAiAlert,
 };
-
 module.exports = aiChatController;

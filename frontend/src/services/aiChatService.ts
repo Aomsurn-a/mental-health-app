@@ -22,12 +22,13 @@ interface SendAiMessageResult {
   data: {
     user_message: AiChatMessage;
     assistant_message: AiChatMessage;
+    risk_alert?: { id: number; status: 'queued_for_psychologist' | 'unassigned' } | null;
   };
 }
 
 export const aiChatService = {
-  sendMessage: async (message: string): Promise<SendAiMessageResult> => {
-    const response = await api.post('/ai-chat/send', { message });
+  sendMessage: async (message: string, message_id?: number): Promise<SendAiMessageResult> => {
+    const response = await api.post('/ai-chat/send', { message, message_id }, { timeout: 40000 });
     return response.data;
   },
 

@@ -55,6 +55,20 @@ const PsyDashboard: React.FC = () => {
   const reports = reportResource.data ?? [];
   const thisWeek = scheduleResource.data;
   const aiAlerts = alertResource.data ?? [];
+  useEffect(() => {
+    let active = true;
+    let busy = false;
+    const timer = setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const alerts = await complaintService.getMyAiAlerts();
+        if (active) alertResource.updateData(() => alerts);
+      } catch { /* Keep existing alerts visible; the next refresh can recover. */ }
+      finally { busy = false; }
+    }, 10000);
+    return () => { active = false; clearInterval(timer); };
+  }, [alertResource.updateData]);
   const [showReports, setShowReports] = useState(false);
   const [pendingActions, setPendingActions] = useState<string[]>([]);
   const [actionError, setActionError] = useState<ReturnType<typeof dashboardError> | null>(null);

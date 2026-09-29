@@ -25,14 +25,18 @@ const AdminComplaints: React.FC = () => {
   const [selectedComplaint, setSelectedComplaint] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
   const [form] = Form.useForm();
 
   const fetchComplaints = async () => {
+    setListLoading(true);
     try {
       const data = await adminService.getAllComplaints();
       setComplaints(data);
     } catch {
       message.error('โหลดข้อมูลไม่สำเร็จ');
+    } finally {
+      setListLoading(false);
     }
   };
 
@@ -110,14 +114,14 @@ const AdminComplaints: React.FC = () => {
   ];
 
   return (
-    <div>
+    <div className="admin-page">
       <Title level={2}>จัดการคำร้อง</Title>
       <Card>
-        <Table dataSource={complaints} columns={columns} rowKey="id"
+        <Table loading={listLoading} className="admin-table" tableLayout="fixed" scroll={{ x: 1000 }} dataSource={complaints} columns={columns} rowKey="id"
           locale={{ emptyText: 'ไม่มีคำร้อง' }} />
       </Card>
 
-      <Modal
+      <Modal className="admin-dialog"
         title={`อัพเดทสถานะคำร้อง`}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
@@ -126,7 +130,7 @@ const AdminComplaints: React.FC = () => {
         confirmLoading={loading}
       >
         {selectedComplaint && (
-          <div style={{ background: '#f5f5f5', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+          <div className="admin-complaint-detail">
             <Text strong>ประเภท: </Text>
             <Text>{typeConfig[selectedComplaint.type]}</Text>
             <br />

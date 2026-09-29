@@ -6,6 +6,7 @@ import '@fontsource/noto-sans-thai/600.css'
 import '@fontsource/noto-sans-thai/700.css'
 import './index.css'
 import './components/page-polish.css'
+import './components/admin-polish.css'
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(

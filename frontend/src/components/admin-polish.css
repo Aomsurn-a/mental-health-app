@@ -1,0 +1,80 @@
+/* Admin-only layout; palette remains the Admin palette in DESIGN.md. */
+.admin-page {
+  max-width: 1440px;
+  min-width: 0;
+  margin-inline: auto;
+  color: #172b3a;
+  --admin-muted: #52616b;
+}
+
+.admin-page > h2.ant-typography,
+.admin-toolbar h2.ant-typography { margin: 0 0 24px; font-size: 32px; line-height: 1.4; }
+.admin-toolbar { gap: 16px; margin-bottom: 32px; }
+.admin-toolbar h2.ant-typography { margin: 0; }
+.admin-page .ant-card { min-width: 0; box-shadow: none; }
+.admin-page .ant-card-head { padding: 16px 24px; }
+.admin-page .ant-card-head-wrapper { gap: 12px; flex-wrap: wrap; }
+.admin-page .ant-card-head-title { white-space: normal; overflow-wrap: anywhere; }
+.admin-page .ant-card-extra { margin-inline-start: auto; }
+.admin-page .ant-card-body { padding: 24px; }
+.admin-page .ant-tabs-content-holder,
+.admin-page .ant-tabs-tabpane { min-width: 0; }
+.admin-page .ant-tabs-tab { min-height: 44px; }
+.admin-table .ant-table-content { overscroll-behavior-inline: contain; scrollbar-color: #52616b #f6f8f7; }
+.admin-table .ant-table-cell { vertical-align: top; overflow-wrap: anywhere; }
+.admin-table .ant-table-cell .ant-typography { max-width: 100%; }
+.admin-table .ant-table-thead > tr > th { font-weight: 600; }
+.admin-table .ant-table-pagination { flex-wrap: wrap; gap: 4px; }
+.admin-page .ant-tag,
+.admin-dialog .ant-tag { max-width: 100%; white-space: normal; line-height: 1.6; padding-block: 2px; }
+.admin-page .ant-btn,
+.admin-dialog .ant-btn { min-height: 44px; min-width: 44px; }
+.admin-page .ant-statistic-content { font-variant-numeric: tabular-nums; }
+.admin-summary-grid .ant-col { display: flex; }
+.admin-summary-grid .dashboard-card-link { width: 100%; }
+.admin-summary-grid .ant-card { height: 100%; }
+.admin-page .admin-summary-grid .ant-statistic-content-suffix { display: block; margin: 4px 0 0; color: var(--admin-muted); }
+.admin-dashboard .ant-list-item { gap: 12px; flex-wrap: wrap; }
+.admin-dashboard .ant-list-item-meta { min-width: min(240px, 100%); }
+.admin-dashboard .ant-list-item-meta-title { overflow-wrap: anywhere; }
+.admin-dashboard .ant-statistic-content-suffix { white-space: normal; }
+
+/* Modals are rendered in a portal, outside the role-specific app shell. */
+.ant-modal.admin-dialog { top: 24px; padding-bottom: 24px; }
+.ant-modal.admin-dialog .ant-modal-container { max-height: calc(100dvh - 48px); display: flex; flex-direction: column; border-radius: 18px; }
+.ant-modal.admin-dialog .ant-modal-close { width: 44px; height: 44px; top: 8px; inset-inline-end: 8px; }
+.admin-dialog .ant-modal-header { flex-shrink: 0; padding-right: 32px; margin-bottom: 24px; }
+.admin-dialog .ant-modal-title { overflow-wrap: anywhere; }
+.admin-dialog .ant-modal-body { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; scrollbar-gutter: stable; padding-right: 8px; }
+.admin-dialog .ant-modal-footer { flex-shrink: 0; margin-top: 24px; }
+.admin-dialog .ant-form-item { margin-bottom: 16px; }
+.admin-dialog .ant-list-item-meta { min-width: 0; }
+.admin-dialog .ant-avatar { flex-shrink: 0; }
+.admin-dialog .admin-psychologist-avatar { background: #166534; }
+.admin-assign-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-assign-controls > .ant-select { flex-basis: 100%; min-width: 0; }
+.admin-complaint-detail { padding: 16px; margin-bottom: 24px; border-radius: 10px; background: #f6f8f7; white-space: pre-wrap; }
+.admin-page :focus-visible,
+.admin-dialog :focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.admin-page ::selection,
+.admin-dialog ::selection { background: #f0fdf4; color: #166534; }
+.admin-dialog input,
+.admin-dialog textarea { caret-color: #166534; }
+
+@media (max-width: 767px) {
+  .admin-page > h2.ant-typography,
+  .admin-toolbar h2.ant-typography { font-size: 24px; }
+  .admin-toolbar { align-items: stretch; margin-bottom: 24px; }
+  .admin-toolbar > .ant-col { width: 100%; }
+  .admin-toolbar > .ant-col > .ant-btn { width: 100%; }
+  .admin-page .ant-card-head,
+  .admin-page .ant-card-body { padding: 16px; }
+  .admin-page .ant-card-head-wrapper { align-items: flex-start; }
+  .admin-page .ant-card-head-title { flex: 1 0 100%; }
+  .admin-page .ant-card-extra { margin-inline-start: 0; }
+  .admin-dashboard .ant-list-item-meta { flex-basis: 100%; }
+  .ant-modal.admin-dialog { top: 16px; padding-bottom: 16px; }
+  .ant-modal.admin-dialog .ant-modal-container { max-height: calc(100dvh - 32px); padding: 20px 16px; }
+  .admin-dialog .ant-modal-footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+  .admin-dialog .ant-modal-footer > .ant-btn + .ant-btn { margin-inline-start: 0; }
+}

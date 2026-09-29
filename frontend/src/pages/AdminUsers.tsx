@@ -11,13 +11,14 @@ const { Title, Text } = Typography;
 const roleConfig: Record<string, { color: string; text: string }> = {
   user:          { color: 'blue',   text: 'ผู้ใช้งาน' },
   psychologist:  { color: 'green',  text: 'นักจิตวิทยา' },
-  admin:         { color: 'red',    text: 'ผู้ดูแลระบบ' },
+  admin:         { color: 'default', text: 'ผู้ดูแลระบบ' },
 };
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<UserAdmin[]>([]);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
@@ -28,11 +29,14 @@ const AdminUsers: React.FC = () => {
   const [passwordForm] = Form.useForm();
 
   const fetchUsers = async () => {
+    setListLoading(true);
     try {
       const data = await adminService.getAllUsers();
       setUsers(data);
     } catch {
       message.error('โหลดข้อมูลไม่สำเร็จ');
+    } finally {
+      setListLoading(false);
     }
   };
 
@@ -47,7 +51,7 @@ const AdminUsers: React.FC = () => {
       await adminService.createUser(values);
       message.success('สร้างบัญชีสำเร็จ');
       setCreateModalOpen(false);
-      createForm.resetFields();
+      createForm.resetFields(); setSelectedRole('user');
       fetchUsers();
     } catch {
       message.error('สร้างบัญชีไม่สำเร็จ');
@@ -123,24 +127,24 @@ const AdminUsers: React.FC = () => {
       title: 'สถานะ',
       dataIndex: 'status',
       render: (status: string) => (
-        <Tag color={status === 'active' ? 'green' : 'red'}>
-          {status === 'active' ? 'ใช้งาน' : 'ระงับ'}
+        <Tag color={status === 'active' ? 'green' : status === 'suspended' ? 'red' : 'default'}>
+          {status === 'active' ? 'ใช้งาน' : status === 'suspended' ? 'ระงับ' : 'ไม่ใช้งาน'}
         </Tag>
       ),
     },
     {
       title: 'จัดการ',
       render: (_: any, record: UserAdmin) => (
-        <Row gutter={4}>
+        <Row gutter={[8, 8]} wrap={false}>
           <Col>
-            <Button size="small" icon={<EditOutlined />} onClick={() => {
+            <Button size="small" aria-label="แก้ไขข้อมูล" title="แก้ไขข้อมูล" icon={<EditOutlined />} onClick={() => {
               setSelectedUser(record);
               editForm.setFieldsValue(record);
               setEditModalOpen(true);
             }} />
           </Col>
           <Col>
-            <Button size="small" icon={<KeyOutlined />} onClick={() => {
+            <Button size="small" aria-label="รีเซ็ตรหัสผ่าน" title="รีเซ็ตรหัสผ่าน" icon={<KeyOutlined />} onClick={() => {
               setSelectedUser(record);
               setPasswordModalOpen(true);
             }} />
@@ -151,7 +155,7 @@ const AdminUsers: React.FC = () => {
               onConfirm={() => handleDelete(record.id)}
               okText="ลบ" cancelText="ยกเลิก"
             >
-              <Button size="small" danger icon={<DeleteOutlined />} />
+              <Button size="small" danger aria-label="ลบรายการ" title="ลบรายการ" icon={<DeleteOutlined />} />
             </Popconfirm>
           </Col>
         </Row>
@@ -160,8 +164,8 @@ const AdminUsers: React.FC = () => {
   ];
 
   return (
-    <div>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+    <div className="admin-page">
+      <Row className="admin-toolbar" justify="space-between" align="middle">
         <Col><Title level={2}>จัดการบัญชี</Title></Col>
         <Col>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
@@ -171,23 +175,23 @@ const AdminUsers: React.FC = () => {
       </Row>
 
       <Card>
-        <Table dataSource={users} columns={columns} rowKey="id"
+        <Table loading={listLoading} className="admin-table" tableLayout="fixed" scroll={{ x: 960 }} dataSource={users} columns={columns} rowKey="id"
           locale={{ emptyText: 'ไม่มีผู้ใช้งาน' }} />
       </Card>
 
       {/* Modal สร้างบัญชี */}
-      <Modal title="สร้างบัญชีใหม่" open={createModalOpen}
-        onCancel={() => { setCreateModalOpen(false); createForm.resetFields(); }}
+      <Modal className="admin-dialog" title="สร้างบัญชีใหม่" open={createModalOpen}
+        onCancel={() => { setCreateModalOpen(false); createForm.resetFields(); setSelectedRole('user'); }}
         onOk={() => createForm.submit()} okText="สร้าง" cancelText="ยกเลิก"
         confirmLoading={loading} width={600}>
         <Form form={createForm} layout="vertical" onFinish={handleCreate}>
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="first_name" label="ชื่อ" rules={[{ required: true }]}>
                 <Input placeholder="ชื่อ" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="last_name" label="นามสกุล" rules={[{ required: true }]}>
                 <Input placeholder="นามสกุล" />
               </Form.Item>
@@ -243,18 +247,18 @@ const AdminUsers: React.FC = () => {
       </Modal>
 
       {/* Modal แก้ไขข้อมูล */}
-      <Modal title="แก้ไขข้อมูล" open={editModalOpen}
+      <Modal className="admin-dialog" title="แก้ไขข้อมูล" open={editModalOpen}
         onCancel={() => setEditModalOpen(false)}
         onOk={() => editForm.submit()} okText="บันทึก" cancelText="ยกเลิก"
         confirmLoading={loading}>
         <Form form={editForm} layout="vertical" onFinish={handleEdit}>
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="first_name" label="ชื่อ" rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="last_name" label="นามสกุล" rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
@@ -277,7 +281,7 @@ const AdminUsers: React.FC = () => {
       </Modal>
 
       {/* Modal รีเซ็ตรหัสผ่าน */}
-      <Modal title={`รีเซ็ตรหัสผ่าน — ${selectedUser?.first_name} ${selectedUser?.last_name}`}
+      <Modal className="admin-dialog" title={`รีเซ็ตรหัสผ่าน — ${selectedUser?.first_name} ${selectedUser?.last_name}`}
         open={passwordModalOpen}
         onCancel={() => { setPasswordModalOpen(false); passwordForm.resetFields(); }}
         onOk={() => passwordForm.submit()} okText="รีเซ็ต" cancelText="ยกเลิก"

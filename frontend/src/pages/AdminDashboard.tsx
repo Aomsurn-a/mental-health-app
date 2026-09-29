@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, Progress, List, Tag, Button, Empty, Alert } from 'antd';
+import { Card, Row, Col, Statistic, Typography, Progress, List, Tag, Button, Empty, Alert, theme } from 'antd';
 import {
   UserOutlined, TeamOutlined, SafetyCertificateOutlined, MedicineBoxOutlined,
   CalendarOutlined, FileTextOutlined, RightOutlined,
@@ -35,14 +35,6 @@ const appointmentStatusLabel: Record<string, string> = {
   cancelled: 'ยกเลิก',
 };
 
-const appointmentStatusColor: Record<string, string> = {
-  pending: '#faad14',
-  approved: '#1677ff',
-  completed: '#52c41a',
-  rejected: '#ff4d4f',
-  cancelled: '#8c8c8c',
-};
-
 const penaltyConfig: Record<string, { color: string; text: string }> = {
   warning_1: { color: 'gold', text: 'ตักเตือนครั้งที่ 1' },
   warning_2: { color: 'orange', text: 'ตักเตือนครั้งที่ 2' },
@@ -59,10 +51,15 @@ const reportStatusConfig: Record<string, { color: string; text: string }> = {
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { token } = theme.useToken();
+  const statusColors: Record<string, string> = {
+    pending: token.colorWarning, approved: token.colorPrimary,
+    completed: token.colorSuccess, rejected: token.colorError, cancelled: token.colorTextSecondary,
+  };
   const resource = useDashboardResource(adminService.getStats);
   const stats = resource.data;
   if (!resource.ready || !stats) return (
-    <div className="dashboard-content"><Title level={2} className="app-page-title">ภาพรวมระบบ</Title>
+    <div className="dashboard-content admin-page admin-dashboard"><Title level={2} className="app-page-title">ภาพรวมระบบ</Title>
       <DashboardSection label="ภาพรวมระบบ" resource={resource}>
         <Empty description="ไม่พบข้อมูลภาพรวมระบบ"><Button onClick={resource.reload}>ลองโหลดอีกครั้ง</Button></Empty>
       </DashboardSection>
@@ -74,7 +71,7 @@ const AdminDashboard: React.FC = () => {
   const needsAttention = pendingComplaintsTotal > 0 || stats.reports.psychologist_pending > 0;
 
   return (
-    <div className="dashboard-content">
+    <div className="dashboard-content admin-page admin-dashboard">
       <Title level={2} className="app-page-title" style={{ marginBottom: 4 }}>ภาพรวมระบบ</Title>
       <Text type="secondary">วันนี้ {dayjs().format('DD/MM/YYYY')}</Text>
 
@@ -95,14 +92,14 @@ const AdminDashboard: React.FC = () => {
       )}
 
       {/* สถิติผู้ใช้งาน + โรงพยาบาล */}
-      <Row gutter={[16, 16]} style={{ marginTop: 16, marginBottom: 16 }}>
+      <Row className="admin-summary-grid" gutter={[16, 16]} style={{ marginTop: 24, marginBottom: 32 }}>
         <Col xs={24} sm={12} lg={6}>
 <Link className="dashboard-card-link" to="/users"><Card hoverable>
             <Statistic
               title="ผู้ใช้งานทั่วไป"
               value={stats.users.total_users}
               prefix={<UserOutlined />}
-              valueStyle={{ color: '#1677ff' }}
+              valueStyle={{ color: token.colorText }}
             />
           </Card></Link>
         </Col>
@@ -112,10 +109,10 @@ const AdminDashboard: React.FC = () => {
               title="นักจิตวิทยา"
               value={stats.users.total_psychologists}
               prefix={<TeamOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: token.colorText }}
               suffix={
                 stats.users.suspended_psychologists > 0 ? (
-                  <span style={{ fontSize: 13, color: '#ff4d4f' }}>
+                  <span style={{ fontSize: 13, color: token.colorError }}>
                     ({stats.users.suspended_psychologists} ถูกระงับ)
                   </span>
                 ) : undefined
@@ -129,7 +126,7 @@ const AdminDashboard: React.FC = () => {
               title="ผู้ดูแลระบบ"
               value={stats.users.total_admins}
               prefix={<SafetyCertificateOutlined />}
-              valueStyle={{ color: '#722ed1' }}
+              valueStyle={{ color: token.colorText }}
             />
           </Card></Link>
         </Col>
@@ -139,7 +136,7 @@ const AdminDashboard: React.FC = () => {
               title="โรงพยาบาล/คลินิก"
               value={stats.hospitals.total}
               prefix={<MedicineBoxOutlined />}
-              valueStyle={{ color: '#13c2c2' }}
+              valueStyle={{ color: token.colorText }}
               suffix={<span style={{ fontSize: 13 }}>({stats.hospitals.active} เปิดใช้งาน)</span>}
             />
           </Card></Link>
@@ -157,7 +154,7 @@ const AdminDashboard: React.FC = () => {
             <Statistic
               value={stats.appointments.total}
               prefix={<CalendarOutlined />}
-              valueStyle={{ color: '#1677ff', fontSize: 28 }}
+              valueStyle={{ color: token.colorText, fontSize: 28 }}
               suffix={<span style={{ fontSize: 14 }}>ทั้งหมด</span>}
             />
             <div style={{ marginTop: 16 }}>
@@ -170,7 +167,7 @@ const AdminDashboard: React.FC = () => {
                   <Progress
                     percent={stats.appointments.total ? Math.round((cnt / stats.appointments.total) * 100) : 0}
                     showInfo={false}
-                    strokeColor={appointmentStatusColor[status] || '#8c8c8c'}
+                    strokeColor={statusColors[status] || token.colorTextSecondary}
                     size="small"
                   />
                 </div>
@@ -192,7 +189,7 @@ const AdminDashboard: React.FC = () => {
                 <Statistic
                   title="รอดำเนินการ"
                   value={stats.reports.psychologist_pending}
-                  valueStyle={{ color: stats.reports.psychologist_pending ? '#ff4d4f' : '#52c41a', fontSize: 22 }}
+                  valueStyle={{ color: stats.reports.psychologist_pending ? token.colorError : token.colorSuccess, fontSize: 22 }}
                 />
               </Col>
               <Col span={8}>
@@ -227,7 +224,7 @@ const AdminDashboard: React.FC = () => {
             <Statistic
               value={pendingComplaintsTotal}
               prefix={<FileTextOutlined />}
-              valueStyle={{ color: pendingComplaintsTotal ? '#faad14' : '#52c41a', fontSize: 28 }}
+              valueStyle={{ color: pendingComplaintsTotal ? token.colorWarning : token.colorSuccess, fontSize: 28 }}
               suffix={<span style={{ fontSize: 14 }}>รอดำเนินการ (จากทั้งหมด {stats.complaints.total})</span>}
             />
             {pendingComplaintTypes.length > 0 && (

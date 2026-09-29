@@ -135,7 +135,7 @@ const AdminReports: React.FC = () => {
       title: 'สรุปปัญหา',
       dataIndex: 'summary',
       render: (summary: string) => (
-        <Text style={{ maxWidth: 260, display: 'block' }} ellipsis={{ tooltip: summary }}>{summary}</Text>
+        <Typography.Paragraph ellipsis={{ rows: 2, expandable: true, symbol: 'อ่านเพิ่มเติม' }}>{summary}</Typography.Paragraph>
       ),
     },
     { title: 'ครั้งที่', dataIndex: 'report_count', align: 'center' as const },
@@ -153,7 +153,7 @@ const AdminReports: React.FC = () => {
       title: 'จัดการ',
       render: (_: any, r: PsychologistReport) => (
         r.status === 'pending' ? (
-          <Space>
+          <Space wrap>
             <Popconfirm title="ยืนยันว่ารายงานนี้เป็นจริง?" okText="ยืนยัน" cancelText="ยกเลิก" onConfirm={() => handleConfirmReport(r.id)}>
               <Button size="small" type="primary">ยืนยัน</Button>
             </Popconfirm>
@@ -211,7 +211,7 @@ const AdminReports: React.FC = () => {
       title: 'เหตุผล',
       dataIndex: 'reason',
       render: (reason: string) => (
-        <Text style={{ maxWidth: 260, display: 'block' }} ellipsis={{ tooltip: reason }}>{reason}</Text>
+        <Typography.Paragraph ellipsis={{ rows: 2, expandable: true, symbol: 'อ่านเพิ่มเติม' }}>{reason}</Typography.Paragraph>
       ),
     },
     {
@@ -225,7 +225,7 @@ const AdminReports: React.FC = () => {
   ];
 
   return (
-    <div>
+    <div className="admin-page">
       <Title level={2} style={{ marginBottom: 24 }}>รายงาน</Title>
 
       <Tabs
@@ -242,7 +242,7 @@ const AdminReports: React.FC = () => {
                   </Button>
                 }
               >
-                <Table
+                <Table className="admin-table" tableLayout="fixed" scroll={{ x: 1100 }}
                   dataSource={psyReports}
                   columns={psyColumns}
                   rowKey="id"
@@ -264,7 +264,7 @@ const AdminReports: React.FC = () => {
                   </Button>
                 }
               >
-                <Table
+                <Table className="admin-table" tableLayout="fixed" scroll={{ x: 1100 }}
                   dataSource={hospitalReports}
                   columns={hospitalColumns}
                   rowKey="id"
@@ -278,7 +278,7 @@ const AdminReports: React.FC = () => {
       />
 
       {/* Modal: สร้างรายงานนักจิตวิทยา */}
-      <Modal
+      <Modal className="admin-dialog"
         title="สร้างรายงานนักจิตวิทยา"
         open={psyModalOpen}
         onCancel={() => { setPsyModalOpen(false); setPickedReportComplaint(null); psyForm.resetFields(); }}
@@ -320,7 +320,7 @@ const AdminReports: React.FC = () => {
       </Modal>
 
       {/* Modal: สร้างรายงานส่งโรงพยาบาล */}
-      <Modal
+      <Modal className="admin-dialog"
         title="สร้างรายงานส่งโรงพยาบาล"
         open={hospModalOpen}
         onCancel={() => { setHospModalOpen(false); hospForm.resetFields(); }}

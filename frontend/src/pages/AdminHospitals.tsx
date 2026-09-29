@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, Col, Popconfirm, message, List, Avatar, Empty, Space } from 'antd';
+import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, Col, Popconfirm, message, List, Avatar, Empty } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, TeamOutlined, UserOutlined, UserAddOutlined } from '@ant-design/icons';
 import { hospitalService } from '../services/hospitalService';
 import type { Hospital, HospitalPsychologist } from '../services/hospitalService';
@@ -11,6 +11,7 @@ const { Title, Text } = Typography;
 const AdminHospitals: React.FC = () => {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [psyModalOpen, setPsyModalOpen] = useState(false);
@@ -25,11 +26,14 @@ const AdminHospitals: React.FC = () => {
   const [editForm] = Form.useForm();
 
   const fetchHospitals = async () => {
+    setListLoading(true);
     try {
       const data = await hospitalService.getAllHospitals();
       setHospitals(data);
     } catch {
       message.error('โหลดข้อมูลไม่สำเร็จ');
+    } finally {
+      setListLoading(false);
     }
   };
 
@@ -163,15 +167,16 @@ const AdminHospitals: React.FC = () => {
     },
     {
       title: 'จัดการ',
+      width: 260,
       render: (_: any, record: Hospital) => (
-        <Row gutter={4}>
+        <Row gutter={[8, 8]} wrap={false}>
           <Col>
             <Button size="small" icon={<TeamOutlined />} onClick={() => handleShowPsychologists(record)}>
               นักจิตวิทยา
             </Button>
           </Col>
           <Col>
-            <Button size="small" icon={<EditOutlined />} onClick={() => {
+            <Button size="small" aria-label="แก้ไขข้อมูล" title="แก้ไขข้อมูล" icon={<EditOutlined />} onClick={() => {
               setSelectedHospital(record);
               editForm.setFieldsValue(record);
               setEditModalOpen(true);
@@ -183,7 +188,7 @@ const AdminHospitals: React.FC = () => {
               onConfirm={() => handleDelete(record.id)}
               okText="ลบ" cancelText="ยกเลิก"
             >
-              <Button size="small" danger icon={<DeleteOutlined />} />
+              <Button size="small" danger aria-label="ลบรายการ" title="ลบรายการ" icon={<DeleteOutlined />} />
             </Popconfirm>
           </Col>
         </Row>
@@ -192,8 +197,8 @@ const AdminHospitals: React.FC = () => {
   ];
 
   return (
-    <div>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+    <div className="admin-page">
+      <Row className="admin-toolbar" justify="space-between" align="middle">
         <Col><Title level={2}>จัดการโรงพยาบาล/คลินิก</Title></Col>
         <Col>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
@@ -203,12 +208,12 @@ const AdminHospitals: React.FC = () => {
       </Row>
 
       <Card>
-        <Table dataSource={hospitals} columns={columns} rowKey="id"
+        <Table loading={listLoading} className="admin-table" tableLayout="fixed" scroll={{ x: 960 }} dataSource={hospitals} columns={columns} rowKey="id"
           locale={{ emptyText: 'ไม่มีโรงพยาบาล/คลินิก' }} />
       </Card>
 
       {/* Modal สร้างโรงพยาบาล */}
-      <Modal title="เพิ่มโรงพยาบาล/คลินิก" open={createModalOpen}
+      <Modal className="admin-dialog" title="เพิ่มโรงพยาบาล/คลินิก" open={createModalOpen}
         onCancel={() => { setCreateModalOpen(false); createForm.resetFields(); }}
         onOk={() => createForm.submit()} okText="สร้าง" cancelText="ยกเลิก"
         confirmLoading={loading}>
@@ -232,7 +237,7 @@ const AdminHospitals: React.FC = () => {
       </Modal>
 
       {/* Modal แก้ไขโรงพยาบาล */}
-      <Modal title="แก้ไขโรงพยาบาล/คลินิก" open={editModalOpen}
+      <Modal className="admin-dialog" title="แก้ไขโรงพยาบาล/คลินิก" open={editModalOpen}
         onCancel={() => setEditModalOpen(false)}
         onOk={() => editForm.submit()} okText="บันทึก" cancelText="ยกเลิก"
         confirmLoading={loading}>
@@ -256,7 +261,7 @@ const AdminHospitals: React.FC = () => {
       </Modal>
 
       {/* Modal นักจิตวิทยาในโรงพยาบาล */}
-      <Modal
+      <Modal className="admin-dialog"
         title={`นักจิตวิทยา — ${selectedHospital?.name || ''}`}
         open={psyModalOpen}
         onCancel={() => { setPsyModalOpen(false); setAddingPsy(false); setNewPsyId(undefined); }}
@@ -268,9 +273,10 @@ const AdminHospitals: React.FC = () => {
               เพิ่มนักจิต
             </Button>
           ) : (
-            <Space.Compact style={{ width: '100%' }}>
+            <div className="admin-assign-controls">
               <Select
                 style={{ width: '100%' }}
+                aria-label="นักจิตวิทยาที่ยังไม่สังกัดโรงพยาบาล"
                 placeholder="เลือกนักจิตวิทยาที่ยังไม่สังกัดโรงพยาบาล"
                 value={newPsyId}
                 onChange={setNewPsyId}
@@ -286,7 +292,7 @@ const AdminHospitals: React.FC = () => {
               <Button onClick={() => { setAddingPsy(false); setNewPsyId(undefined); }}>
                 ยกเลิก
               </Button>
-            </Space.Compact>
+            </div>
           )}
         </div>
 
@@ -305,12 +311,12 @@ const AdminHospitals: React.FC = () => {
                     onConfirm={() => handleRemovePsychologist(psy.id)}
                     okText="ลบ" cancelText="ยกเลิก"
                   >
-                    <Button size="small" danger icon={<DeleteOutlined />} />
+                    <Button size="small" danger aria-label="ลบรายการ" title="ลบรายการ" icon={<DeleteOutlined />} />
                   </Popconfirm>,
                 ]}
               >
                 <List.Item.Meta
-                  avatar={<Avatar icon={<UserOutlined />} style={{ background: '#1677ff' }} />}
+                  avatar={<Avatar icon={<UserOutlined />} className="admin-psychologist-avatar" />}
                   title={`${psy.first_name} ${psy.last_name}`}
                   description={psy.specialty || 'ไม่ระบุความเชี่ยวชาญ'}
                 />

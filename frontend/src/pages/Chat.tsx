@@ -22,7 +22,9 @@ const Chat: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const pollingRef = useRef<any>(null);
+  const selectedIdRef = useRef<number | null>(null);
+  const sendBusy = useRef(false);
+  const aiBusy = useRef(false);
   const lastIdRef = useRef<number>(0);
 
   // AI chat mode
@@ -31,6 +33,12 @@ const Chat: React.FC = () => {
   const [aiLoaded, setAiLoaded] = useState(false);
   const [aiInputMessage, setAiInputMessage] = useState('');
   const [aiSending, setAiSending] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiRetry, setAiRetry] = useState<AiChatMessage | null>(null);
+  const isUser = auth?.user?.role === 'user';
+  const mergeMessages = (previous: ChatMessage[], incoming: ChatMessage[]) =>
+    [...new Map([...previous, ...incoming].map(m => [m.id, m])).values()].sort((a,b) => a.id-b.id);
+
 
   // โหลดรายชื่อที่คุยด้วยได้
   useEffect(() => {
@@ -49,39 +57,47 @@ const Chat: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // เลือกคนคุย
-  const handleSelectPartner = async (partner: ChatPartner) => {
+  const handleSelectPartner = (partner: ChatPartner) => {
+    selectedIdRef.current = partner.id;
     setSelectedPartner(partner);
-    setMessages([]);
     setMode('human');
-    lastIdRef.current = 0;
-
-    // หยุด polling เดิม
-    if (pollingRef.current) clearInterval(pollingRef.current);
-
-    try {
-      const data = await chatService.getMessages(partner.id);
-      setMessages(data);
-      if (data.length > 0) {
-        lastIdRef.current = data[data.length - 1].id;
-      }
-    } catch {
-      message.error('โหลดข้อความไม่สำเร็จ');
-    }
-
-    // เริ่ม polling ทุก 3 วินาที
-    pollingRef.current = setInterval(async () => {
-      try {
-        const newMsgs = await chatService.getNewMessages(partner.id, lastIdRef.current);
-        if (newMsgs.length > 0) {
-          setMessages(prev => [...prev, ...newMsgs]);
-          lastIdRef.current = newMsgs[newMsgs.length - 1].id;
-        }
-      } catch {
-        console.error('polling error');
-      }
-    }, 3000);
+    setInputMessage('');
   };
+
+  useEffect(() => {
+    const partnerId = selectedPartner?.id;
+    if (!partnerId) return;
+    let active = true;
+    let busy = false;
+    lastIdRef.current = 0;
+    setMessages([]);
+    const poll = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const incoming = await chatService.getNewMessages(partnerId, lastIdRef.current);
+        if (active && selectedIdRef.current === partnerId) {
+          setMessages(previous => mergeMessages(previous, incoming));
+          if (incoming.length) lastIdRef.current = incoming[incoming.length - 1].id;
+        }
+      } catch { /* Retry next tick; don't discard displayed messages. */ }
+      finally { busy = false; }
+    };
+    const load = async () => {
+      busy = true;
+      try {
+        const history = await chatService.getMessages(partnerId);
+        if (active && selectedIdRef.current === partnerId) {
+          setMessages(previous => mergeMessages(previous, history));
+          lastIdRef.current = history.at(-1)?.id || 0;
+        }
+      } catch { if (active) message.error('โหลดข้อความไม่สำเร็จ กรุณาลองเลือกผู้รับอีกครั้ง'); }
+      finally { busy = false; }
+    };
+    void load();
+    const timer = setInterval(poll, 2000);
+    return () => { active = false; clearInterval(timer); };
+  }, [selectedPartner?.id]);
 
   const [searchParams] = useSearchParams();
 
@@ -97,31 +113,31 @@ const Chat: React.FC = () => {
     }
   }, [searchParams, chatList]); // chatList เป็น dependency ด้วย
 
-  // หยุด polling เมื่อออกจากหน้า
-  useEffect(() => {
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, []);
-
-  // ส่งข้อความ
   const handleSend = async () => {
-    if (!inputMessage.trim() || !selectedPartner) return;
+    if (sendBusy.current || !inputMessage.trim() || !selectedPartner) return;
+    const partnerId = selectedPartner.id;
+    const text = inputMessage.trim();
+    sendBusy.current = true;
     setSending(true);
     try {
-      const newMsg = await chatService.sendMessage(selectedPartner.id, inputMessage.trim());
-      setMessages(prev => [...prev, newMsg]);
-      lastIdRef.current = newMsg.id;
-      setInputMessage('');
-    } catch {
-      message.error('ส่งข้อความไม่สำเร็จ');
+      const newMsg = await chatService.sendMessage(partnerId, text);
+      if (selectedIdRef.current === partnerId) {
+        setMessages(previous => mergeMessages(previous, [newMsg]));
+        setInputMessage('');
+      }
+      // Only polling advances its cursor, so simultaneous incoming messages
+      // with an earlier ID than this outgoing message are never skipped.
+    } catch (error: unknown) {
+      const failure = error as { response?: { data?: { message?: string } } };
+      message.error(failure.response?.data?.message || 'ส่งข้อความไม่สำเร็จ กรุณาลองใหม่');
     } finally {
+      sendBusy.current = false;
       setSending(false);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -129,11 +145,14 @@ const Chat: React.FC = () => {
 
   // โหมด AI: โหลดประวัติแชท AI (โหลดครั้งแรกเท่านั้น)
   const handleSwitchToAi = async () => {
+    if (!isUser) return;
     setMode('ai');
     if (!aiLoaded) {
       try {
         const history = await aiChatService.getHistory();
         setAiMessages(history);
+        const last = history.at(-1);
+        if (last?.role === 'user') { setAiRetry(last); setAiError('ข้อความล่าสุดยังไม่มีคำตอบ ลองขอคำตอบอีกครั้งได้'); }
         setAiLoaded(true);
       } catch {
         message.error('โหลดประวัติแชท AI ไม่สำเร็จ');
@@ -141,28 +160,44 @@ const Chat: React.FC = () => {
     }
   };
 
-  const handleSendAi = async () => {
-    if (!aiInputMessage.trim()) return;
-    const text = aiInputMessage.trim();
+  const handleSendAi = async (retry = false) => {
+    const text = retry ? aiRetry?.content : aiInputMessage.trim();
+    if (aiBusy.current || !text) return;
+    aiBusy.current = true;
     setAiSending(true);
-    setAiInputMessage('');
-    try {
-      const result = await aiChatService.sendMessage(text);
-      const { user_message, assistant_message } = result.data;
-      setAiMessages(prev => {
-        const next: AiDisplayItem[] = [...prev, user_message, assistant_message];
-        if (user_message.risk_flag) {
-          next.push({
-            id: `notice-${user_message.id}`,
-            role: 'system',
-            content: 'ระบบได้แจ้งนักจิตวิทยาของคุณเรียบร้อยแล้ว',
-          });
-        }
-        return next;
+    setAiError('');
+    const append = (userMessage: AiChatMessage, assistant?: AiChatMessage,
+      alert?: { id: number; status: string } | null) => {
+      setAiMessages(previous => {
+        const incoming: AiDisplayItem[] = [userMessage, ...(assistant ? [assistant] : [])];
+        if (alert) incoming.push({
+          id: 'notice-' + alert.id, role: 'system',
+          content: alert.status === 'queued_for_psychologist'
+            ? 'ส่งการแจ้งเตือนไปยังหน้าจอนักจิตวิทยาแล้ว แต่อาจยังไม่มีผู้รับทราบ หากไม่ปลอดภัยอย่ารอคำตอบจากแชท'
+            : 'บันทึกการแจ้งเตือนแล้ว แต่ยังไม่มีนักจิตวิทยาที่ผูกกับคุณ กรุณาติดต่อนักจิตวิทยาหรือคนที่ไว้ใจ หากมีอันตรายเร่งด่วนโทร 1669 หรือ 191',
+        });
+        return [...new Map([...previous, ...incoming].map(m => [m.id,m])).values()];
       });
-    } catch {
-      message.error('ส่งข้อความไม่สำเร็จ');
+    };
+    try {
+      const result = await aiChatService.sendMessage(text, retry ? aiRetry?.id : undefined);
+      append(result.data.user_message, result.data.assistant_message, result.data.risk_alert);
+      setAiRetry(null);
+      if (!retry) setAiInputMessage('');
+    } catch (error: unknown) {
+      const failure = error as { response?: { data?: { message?: string; data?: {
+        user_message?: AiChatMessage; risk_alert?: { id: number; status: string } | null;
+      } } } };
+      const payload = failure.response?.data;
+      const saved = payload?.data?.user_message;
+      if (saved) {
+        append(saved, undefined, payload?.data?.risk_alert);
+        setAiRetry(saved);
+        if (!retry) setAiInputMessage('');
+      }
+      setAiError(payload?.message || 'เชื่อมต่อไม่ได้ ข้อความยังอยู่ในช่องพิมพ์ กรุณาลองใหม่');
     } finally {
+      aiBusy.current = false;
       setAiSending(false);
     }
   };
@@ -246,14 +281,12 @@ const Chat: React.FC = () => {
           <Card
             className="chat-conversation-panel"
             title={
-              !selectedPartner
-                ? 'เลือกคนที่ต้องการคุย'
-                : mode === 'ai'
+              mode === 'ai'
                 ? 'คุยกับ AI ระหว่างรอ'
-                : `${selectedPartner.first_name} ${selectedPartner.last_name}`
+                : selectedPartner ? `${selectedPartner.first_name} ${selectedPartner.last_name}` : 'เลือกคนที่ต้องการคุย'
             }
             extra={
-              selectedPartner && (
+              isUser && (
                 <Segmented
                   className="chat-mode-switch"
                   value={mode}
@@ -268,7 +301,7 @@ const Chat: React.FC = () => {
             style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
             bodyStyle={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}
           >
-            {!selectedPartner ? (
+            {!selectedPartner && mode !== 'ai' ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Text type="secondary">เลือกรายชื่อเพื่อเริ่มสนทนา</Text>
               </div>
@@ -284,6 +317,8 @@ const Chat: React.FC = () => {
                   style={{ borderRadius: 0 }}
                 />
 
+                {aiError && <Alert type="error" showIcon title={aiError} role="alert"
+                  action={aiRetry ? <Button onClick={() => handleSendAi(true)} loading={aiSending}>ลองขอคำตอบอีกครั้ง</Button> : undefined} />}
                 {/* ข้อความ AI */}
                 {aiMessages.length === 0 ? (
                   <div className="chat-empty"><Text type="secondary">เริ่มพูดคุยกับ AI ได้เลย</Text></div>
@@ -327,9 +362,11 @@ const Chat: React.FC = () => {
                     <Col flex={1}>
                       <Input.TextArea
                         value={aiInputMessage}
+                        maxLength={5000}
+                        disabled={aiSending}
                         aria-label="ข้อความถึง AI"
                         onChange={e => setAiInputMessage(e.target.value)}
-                        onKeyPress={handleAiKeyPress}
+                        onKeyDown={handleAiKeyPress}
                         placeholder="พิมพ์ข้อความถึง AI... (Enter เพื่อส่ง)"
                         autoSize={{ minRows: 1, maxRows: 4 }}
                       />
@@ -341,7 +378,7 @@ const Chat: React.FC = () => {
                         type="primary"
                         shape="circle"
                         icon={<SendOutlined />}
-                        onClick={handleSendAi}
+                        onClick={() => handleSendAi()}
                         loading={aiSending}
                         disabled={!aiInputMessage.trim()}
                       />
@@ -351,7 +388,7 @@ const Chat: React.FC = () => {
               </>
             ) : (
               <>
-                {showAiPrompt && (
+                {isUser && showAiPrompt && (
                   <Alert
                     type="warning"
                     showIcon
@@ -402,9 +439,11 @@ const Chat: React.FC = () => {
                     <Col flex={1}>
                       <Input.TextArea
                         value={inputMessage}
+                        maxLength={5000}
+                        disabled={sending}
                         aria-label="ข้อความถึงนักจิตวิทยา"
                         onChange={e => setInputMessage(e.target.value)}
-                        onKeyPress={handleKeyPress}
+                        onKeyDown={handleKeyPress}
                         placeholder="พิมพ์ข้อความ... (Enter เพื่อส่ง)"
                         autoSize={{ minRows: 1, maxRows: 4 }}
                       />
