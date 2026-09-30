@@ -9,6 +9,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { scheduleTemplateService } from '../../services/scheduleTemplateService';
 import type { ScheduleTemplate as Template } from '../../services/scheduleTemplateService';
 import type { TwoWeekGenerationResult } from '../../services/scheduleTemplateService';
+import type { ScheduleApplyResult } from '../../services/scheduleTemplateService';
 import './schedule-template.css';
 
 const DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
@@ -39,6 +40,7 @@ function TemplateEditor() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
+  const [protectedSlots, setProtectedSlots] = useState<ScheduleApplyResult['protectedSlots']>([]);
   const [notice, setNotice] = useState<{ type: 'success' | 'info'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -93,10 +95,13 @@ function TemplateEditor() {
     finally { setDeleting(null); }
   }
   async function generate() {
-    setGenerating(true); setError(''); setNotice(null);
+    setGenerating(true); setError(''); setNotice(null); setProtectedSlots([]);
     try {
-      const result = await scheduleTemplateService.generate(week.format('YYYY-MM-DD'));
-      setNotice(generationNotice(result));
+      const result = await scheduleTemplateService.applyCurrentWeeks();
+      setProtectedSlots(result.protectedSlots);
+      setNotice(result.status === 'skipped'
+        ? { type: 'info', text: 'ยังไม่มีตารางงานประจำ ระบบไม่เปลี่ยนตารางเดิม' }
+        : { type: 'success', text: `ใช้ตารางงานประจำล่าสุดแล้ว · แก้ไข ${result.updated} สัปดาห์ · สร้างใหม่ ${result.created} สัปดาห์ โดยคงช่วงที่มีนัดหมายไว้` });
     } catch (e) { setError(errorMessage(e)); }
     finally { setGenerating(false); }
   }
@@ -112,10 +117,16 @@ function TemplateEditor() {
       <Link to="/psy-schedule">ดูตารางรายสัปดาห์</Link>
     </header>
     <Typography.Paragraph type="secondary">หลังบันทึก ระบบจะเติมตารางสัปดาห์นี้และสัปดาห์ถัดไปให้อัตโนมัติ และสร้างล่วงหน้า 2 สัปดาห์ทุกวันอาทิตย์ เวลา 00:00 น. ตามเวลาประเทศไทย</Typography.Paragraph>
-    <Alert showIcon type="warning" title="ตารางงานประจำใช้สร้างเฉพาะสัปดาห์ที่ยังไม่มีตารางหรือถูกลบแล้ว ไม่เขียนทับสัปดาห์ที่ยังมีตารางอยู่ หากไม่มีตารางงานประจำ ระบบจะไม่สร้างตาราง" />
+    <Alert showIcon type="info" title="ระบบอัตโนมัติสร้างเฉพาะสัปดาห์ที่ยังไม่มีตาราง ส่วนปุ่มแก้ไขจะใช้ตารางงานประจำล่าสุดกับ 2 สัปดาห์นี้ โดยคงช่วงที่มีนัดหมายไว้ หากไม่มีตารางงานประจำ ระบบจะไม่เปลี่ยนตาราง" />
     <div className="schedule-template-feedback" aria-live="polite">
       {notice && <Alert showIcon type={notice.type} title={notice.text} />}
       {error && <Alert showIcon type="error" title={error} />}
+      {protectedSlots.length > 0 && <Alert showIcon type="warning" title={`คงช่วงเวลาเดิม ${protectedSlots.length} ช่วง เนื่องจากมีนัดหมายแล้ว`} description={<>
+        <p>ช่วงต่อไปนี้ยังใช้เวลาและจำนวนรับเดิม ไม่ถูกแทนที่ด้วยตารางงานประจำใหม่ และไม่เปลี่ยนข้อมูลนัดหมาย</p>
+        <ul>{protectedSlots.map((slot, index) => <li key={`${slot.work_date}-${slot.start_time}-${index}`}>
+          {dayjs(slot.work_date).format('DD/MM/YYYY')} · {slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)} น. · {slot.appointmentCount} นัดหมาย
+        </li>)}</ul>
+      </>} />}
     </div>
     <section aria-labelledby="template-list-title" className="schedule-template-section">
       <Typography.Title level={3} id="template-list-title">ช่วงเวลาประจำ</Typography.Title>
@@ -156,8 +167,10 @@ function TemplateEditor() {
     </section>
     <section className="schedule-template-section" aria-labelledby="template-generate-title">
       <Typography.Title level={3} id="template-generate-title">ตารางงาน 2 สัปดาห์นี้</Typography.Title>
-      <Typography.Paragraph type="secondary">{week.format('DD/MM/YYYY')}–{week.add(13, 'day').format('DD/MM/YYYY')} · สัปดาห์นี้และสัปดาห์ถัดไป สร้างเฉพาะสัปดาห์ที่ยังไม่มีตารางหรือถูกลบแล้ว ไม่เขียนทับตารางเดิม</Typography.Paragraph>
-      <Button icon={<CalendarOutlined aria-hidden="true" />} loading={generating} disabled={busy || loading || !!loadError || !items.length} onClick={generate}>แก้ไขตาราง 2 สัปดาห์นี้จากตารางงานประจำ</Button>
+      <Typography.Paragraph type="secondary">{week.format('DD/MM/YYYY')}–{week.add(13, 'day').format('DD/MM/YYYY')} · ใช้ตารางงานประจำล่าสุดแทนช่วงที่ไม่มีนัดหมายในสัปดาห์นี้และสัปดาห์ถัดไป คงช่วงที่มีนัดหมายและจำนวนรับเดิมไว้</Typography.Paragraph>
+      <Popconfirm title="ใช้ตารางงานประจำล่าสุดกับ 2 สัปดาห์นี้?" description="ช่วงที่ไม่มีนัดหมายจะถูกแทนที่ รวมถึงช่วงที่เคยแก้เอง ส่วนช่วงที่มีนัดหมายจะคงเดิม" okText="ยืนยันแก้ไขตาราง" cancelText="ยกเลิก" onConfirm={generate}>
+        <Button icon={<CalendarOutlined aria-hidden="true" />} loading={generating} disabled={busy || loading || !!loadError || !items.length}>แก้ไขตาราง 2 สัปดาห์นี้จากตารางงานประจำ</Button>
+      </Popconfirm>
     </section>
   </div>;
 }

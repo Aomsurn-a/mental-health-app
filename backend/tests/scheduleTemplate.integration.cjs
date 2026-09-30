@@ -42,7 +42,7 @@ const pass = name => console.log('PASS ' + name);
       return { status: response.status, body: await response.json() };
     }
     const slot = { day_of_week: 1, start_time: '09:00', end_time: '12:00', max_patients_per_slot: 2 };
-    for (const [method, suffix, body] of [['GET', '', undefined], ['POST', '', slot], ['PUT', '/1', slot], ['DELETE', '/1', undefined], ['POST', '/generate-now', { weekStartDate: '2026-10-05' }]]) {
+    for (const [method, suffix, body] of [['GET', '', undefined], ['POST', '', slot], ['PUT', '/1', slot], ['DELETE', '/1', undefined], ['POST', '/generate-now', { weekStartDate: '2026-10-05' }], ['POST', '/apply-current-weeks', {}]]) {
       assert.equal((await request(method, suffix, body, null)).status, 401);
       for (const role of ['patient', 'admin']) assert.equal((await request(method, suffix, body, role)).status, 403);
     }
@@ -128,6 +128,44 @@ const pass = name => console.log('PASS ' + name);
     await request('DELETE', '/weeks/' + cronWeeks[0].id, undefined, 'psych', '/api/schedule');
     stats = await job.runWeeklyScheduleGenerator({ db, today: '2026-12-27' }); assert.equal(stats.created, 1); assert.equal(stats.skipped, 1);
     pass('Sunday midnight Bangkok cron; dry-run; two upcoming weeks across year; repeat run skips');
+    const reconcile = require('../src/services/scheduleReconciliationService');
+    assert.deepEqual(reconcile.currentTwoWeeks('2027-04-11'), ['2027-04-05', '2027-04-12']);
+    assert.equal((await request('POST', '/apply-current-weeks', { psychologist_id: psys.psych }, 'other')).body.reason, 'no_templates');
+    for (const [day, start, end] of [[1, '09:00', '12:00'], [2, '13:00', '15:00']]) {
+      await db.query('INSERT INTO schedule_templates(psychologist_id,day_of_week,start_time,end_time,max_patients_per_slot) VALUES(?,?,?,?,?)', [psys.other, day, start, end, 2]);
+    }
+    const apply = () => reconcile.applyCurrentTwoWeeks(psys.other, { today: '2027-04-07' });
+    let applied = await apply(); assert.equal(applied.created, 2);
+    for (const [date, time, status, active] of [['2027-04-05', '09:00', 'pending', 1], ['2027-04-12', '10:00', 'approved', 1], ['2027-04-12', '11:00', 'completed', 1], ['2027-04-06', '13:00', 'cancelled', 1], ['2027-04-13', '13:00', 'rejected', 1], ['2027-04-06', '14:00', 'approved', 0]]) {
+      await db.query('INSERT INTO appointments(user_id,psychologist_id,appointment_date,appointment_time,status,active_flag) VALUES(?,?,?,?,?,?)', [users.patient, psys.other, date, time, status, active]);
+    }
+    const [beforeAppointments] = await db.query('SELECT * FROM appointments WHERE psychologist_id = ?', [psys.other]);
+    const snapshot = async () => (await db.query("SELECT id,DATE_FORMAT(work_date,'%Y-%m-%d') AS work_date,start_time,end_time,max_patients_per_slot FROM psychologist_schedules WHERE psychologist_id = ? AND active_flag = ? ORDER BY work_date,start_time", [psys.other, 1]))[0];
+    const initial = await snapshot();
+    await db.query('UPDATE schedule_templates SET start_time = ?, end_time = ?, max_patients_per_slot = ? WHERE psychologist_id = ? AND day_of_week = ?', ['08:00', '14:00', 5, psys.other, 1]);
+    await db.query('UPDATE schedule_templates SET active_flag = ? WHERE psychologist_id = ? AND day_of_week = ?', [0, psys.other, 2]);
+    await db.query('INSERT INTO schedule_templates(psychologist_id,day_of_week,start_time,end_time,max_patients_per_slot) VALUES(?,?,?,?,?)', [psys.other, 3, '10:00', '12:00', 3]);
+    applied = await apply(); assert.equal(applied.updated, 2); assert.equal(applied.protectedSlots.length, 2);
+    assert.deepEqual(applied.protectedSlots.map(s => s.appointmentCount), [1, 2]);
+    assert.ok(applied.protectedSlots.every(s => Object.keys(s).sort().join(',') === 'appointmentCount,end_time,start_time,work_date'));
+    const changed = await snapshot();
+    for (const old of initial.filter(s => s.start_time === '09:00:00')) assert.deepEqual(changed.find(s => s.id === old.id), old);
+    assert.ok(!changed.some(s => s.work_date === '2027-04-06' || s.work_date === '2027-04-13'));
+    assert.deepEqual(changed.filter(s => s.work_date === '2027-04-05').map(s => [s.start_time, s.end_time, s.max_patients_per_slot]), [['08:00:00', '09:00:00', 5], ['09:00:00', '12:00:00', 2], ['12:00:00', '14:00:00', 5]]);
+    const [afterAppointments] = await db.query('SELECT * FROM appointments WHERE psychologist_id = ?', [psys.other]);
+    assert.deepEqual(afterAppointments, beforeAppointments);
+    const shape = rows => rows.map(({ id, ...rest }) => rest);
+    await Promise.all([apply(), apply()]); assert.deepEqual(shape(await snapshot()), shape(changed));
+    pass('manual apply replaces free slots, preserves booked IDs/capacity and appointment records, splits overlaps without duplicates');
+    const preFailure = await snapshot();
+    await db.query("CREATE TRIGGER test_apply_failure BEFORE INSERT ON psychologist_schedules FOR EACH ROW BEGIN IF NEW.work_date = '2027-04-12' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'synthetic second week failure'; END IF; END");
+    await assert.rejects(apply()); await db.query('DROP TRIGGER test_apply_failure');
+    assert.deepEqual(await snapshot(), preFailure);
+    await db.query('INSERT INTO appointments(user_id,psychologist_id,appointment_date,appointment_time,status) VALUES(?,?,?,?,?)', [users.patient, psys.other, '2027-04-08', '18:00', 'pending']);
+    await assert.rejects(apply(), error => error.status === 409); assert.deepEqual(await snapshot(), preFailure);
+    await db.query('UPDATE schedule_templates SET active_flag = ? WHERE psychologist_id = ?', [0, psys.other]);
+    assert.equal((await apply()).reason, 'no_templates'); assert.deepEqual(await snapshot(), preFailure);
+    pass('manual apply atomically rolls back both weeks, refuses orphan appointments and leaves schedules unchanged without templates');
     for (const id of [monday, sunday, adjacent]) assert.equal((await request('DELETE', '/' + id)).status, 200);
     assert.equal((await request('GET')).body.length, 0);
     assert.equal((await request('POST', '/generate-now', { weekStartDate: '2027-02-01' })).body.reason, 'no_templates');
@@ -161,8 +199,12 @@ const pass = name => console.log('PASS ' + name);
       const [autoSlots] = await db.query('SELECT max_patients_per_slot FROM psychologist_schedules WHERE psychologist_id = ? AND active_flag = ?', [psys.psych, 1]);
       assert.ok(autoSlots.every(row => row.max_patients_per_slot === 1));
       await request('DELETE', '/weeks/' + autoWeeks[0].id, undefined, 'psych', '/api/schedule');
+      const [bookable] = await db.query("SELECT DATE_FORMAT(work_date,'%Y-%m-%d') AS work_date,start_time FROM psychologist_schedules WHERE week_id = ? AND active_flag = ? ORDER BY work_date,start_time", [autoWeeks[1].id, 1]);
+      await db.query('INSERT INTO appointments(user_id,psychologist_id,appointment_date,appointment_time,status) VALUES(?,?,?,?,?)', [users.patient, psys.psych, bookable[0].work_date, bookable[0].start_time, 'pending']);
       await page.getByRole('button', { name: 'แก้ไขตาราง 2 สัปดาห์นี้จากตารางงานประจำ', exact: true }).click();
-      await page.getByText(/สร้างตารางแล้ว 1 สัปดาห์ · อีก 1 สัปดาห์มีตารางอยู่แล้วจึงไม่สร้างทับ/).waitFor();
+      await page.getByRole('button', { name: 'ยืนยันแก้ไขตาราง', exact: true }).click();
+      await page.getByText(/ใช้ตารางงานประจำล่าสุดแล้ว · แก้ไข 1 สัปดาห์ · สร้างใหม่ 1 สัปดาห์/).waitFor();
+      await page.getByText('คงช่วงเวลาเดิม 1 ช่วง เนื่องจากมีนัดหมายแล้ว', { exact: true }).waitFor();
       for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
         await page.setViewportSize({ width, height });
         await page.screenshot({ path: path.join(__dirname, '../../.impeccable/review/schedule-template-' + name + '.png'), fullPage: true, animations: 'disabled' });

@@ -5,6 +5,7 @@ const guards = [authMiddleware, roleMiddleware('psychologist')];
 router.get('/schedule-template', ...guards, controller.list);
 router.post('/schedule-template', ...guards, controller.create);
 router.post('/schedule-template/generate-now', ...guards, controller.generateNow);
+router.post('/schedule-template/apply-current-weeks', ...guards, controller.applyCurrentWeeks);
 router.put('/schedule-template/:id', ...guards, controller.update);
 router.delete('/schedule-template/:id', ...guards, controller.remove);
 module.exports = router;

@@ -21,7 +21,16 @@ export interface TwoWeekGenerationResult {
   skipped: number;
 }
 const base = '/psychologist/schedule-template';
+export interface ScheduleApplyResult {
+  status: 'applied' | 'skipped';
+  reason?: 'no_templates';
+  created: number;
+  updated: number;
+  weekStarts: string[];
+  protectedSlots: { work_date: string; start_time: string; end_time: string; appointmentCount: number }[];
+}
 export const scheduleTemplateService = {
+  applyCurrentWeeks: async (): Promise<ScheduleApplyResult> => (await api.post(`${base}/apply-current-weeks`)).data,
   list: async (): Promise<ScheduleTemplate[]> => (await api.get(base)).data,
   create: async (value: ScheduleTemplateInput): Promise<ScheduleTemplate> => (await api.post(base, value)).data,
   update: async (id: number, value: ScheduleTemplateInput): Promise<ScheduleTemplate> => (await api.put(`${base}/${id}`, value)).data,

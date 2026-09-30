@@ -68,6 +68,15 @@ exports.create = (req, res) => mutate(req, res, 'create');
 exports.update = (req, res) => mutate(req, res, 'update');
 exports.remove = (req, res) => mutate(req, res, 'delete');
 
+// การแก้ไขตามปุ่มเท่านั้น ตรวจเจ้าของจาก JWT และคำนวณสองสัปดาห์ปัจจุบันฝั่ง server
+exports.applyCurrentWeeks = async (req, res) => {
+  try {
+    const id = await owner(db, req.user.id);
+    const result = await require('../services/scheduleReconciliationService').applyCurrentTwoWeeks(id);
+    res.json(result);
+  } catch (error) { fail(res, error); }
+};
+
 // ปุ่มสร้างทันทีใช้บริการเดียวกับ cron เพื่อให้กฎข้ามสัปดาห์เหมือนกันทุกทาง
 exports.generateNow = async (req, res) => {
   try {
