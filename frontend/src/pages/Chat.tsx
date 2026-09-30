@@ -9,6 +9,7 @@ import type { ChatPartner, ChatMessage } from '../services/chatService';
 import type { AiChatMessage } from '../services/aiChatService';
 import { useSearchParams } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
+import ChatWithPatient from './psychologist/ChatWithPatient';
 
 const { Text, Title } = Typography;
 
@@ -286,7 +287,8 @@ const Chat: React.FC = () => {
                 : selectedPartner ? `${selectedPartner.first_name} ${selectedPartner.last_name}` : 'เลือกคนที่ต้องการคุย'
             }
             extra={
-              isUser && (
+              auth?.user?.role === 'psychologist' && selectedPartner
+                ? <ChatWithPatient key={selectedPartner.id} patientId={selectedPartner.id} /> : isUser && (
                 <Segmented
                   className="chat-mode-switch"
                   value={mode}

@@ -42,6 +42,7 @@ const menuItems = {
     { key: '/appointment', icon: <CalendarOutlined />, label: 'จัดการนัดหมาย' },
     { key: '/patients', icon: <TeamOutlined />, label: 'ผู้ป่วย' },
     { key: '/psy-schedule', icon: <ClockCircleOutlined />, label: 'ตารางงาน' },
+    { key: '/schedule-template', icon: <FormOutlined />, label: 'ตารางงานประจำ' },
     { key: '/chat', icon: <MessageOutlined />, label: 'แชท' },
     { key: '/complaint', icon: <FileTextOutlined />, label: 'คำร้อง' },
   ],

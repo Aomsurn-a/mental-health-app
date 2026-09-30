@@ -5,7 +5,16 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "migrate:trend": "node scripts/migrate-trend.cjs",
+    "patterns:run": "node src/jobs/patternDetectionJob.js",
+    "test:trend": "node --test tests/trend.unit.cjs && node tests/trend.integration.cjs",
+    "migrate:pre-session": "node scripts/migrate-pre-session.cjs",
+    "test:pre-session": "node tests/preSession.integration.cjs",
+    "test:chat-summary": "node tests/chatSummary.integration.cjs",
+    "migrate:schedule-templates": "node scripts/migrate-schedule-templates.cjs",
+    "schedules:generate": "node src/jobs/weeklyScheduleGeneratorJob.js",
+    "test:schedule-templates": "node tests/scheduleTemplate.integration.cjs"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +27,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.22.6",
+    "node-cron": "^4.6.0",
     "pdfkit": "^0.19.1"
   },
   "devDependencies": {

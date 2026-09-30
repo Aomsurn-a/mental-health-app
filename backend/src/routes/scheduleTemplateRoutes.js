@@ -1,0 +1,10 @@
+const router = require('express').Router();
+const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const controller = require('../controllers/scheduleTemplateController');
+const guards = [authMiddleware, roleMiddleware('psychologist')];
+router.get('/schedule-template', ...guards, controller.list);
+router.post('/schedule-template', ...guards, controller.create);
+router.post('/schedule-template/generate-now', ...guards, controller.generateNow);
+router.put('/schedule-template/:id', ...guards, controller.update);
+router.delete('/schedule-template/:id', ...guards, controller.remove);
+module.exports = router;

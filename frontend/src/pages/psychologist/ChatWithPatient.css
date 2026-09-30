@@ -1,0 +1,12 @@
+.chat-summary-form { display: grid; gap: 12px; min-width: 0; }
+.chat-summary-form > label { font-weight: 500; }
+.chat-summary-form .ant-picker { width: 100%; min-width: 0; }
+.chat-summary-form h5 { margin-block: 12px; }
+.chat-summary-bullets { margin: 0 0 16px; padding-inline-start: 24px; line-height: 1.8; overflow-wrap: anywhere; }
+.chat-summary-bullets li + li { margin-top: 8px; }
+.chat-summary-loading { display: flex; align-items: center; gap: 12px; min-height: 64px; }
+.chat-summary-dialog .ant-alert { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .chat-summary-calendar .ant-picker-panels { flex-direction: column; }
+  .chat-summary-calendar .ant-picker-panel-container { max-height: 65dvh; overflow-y: auto; }
+}

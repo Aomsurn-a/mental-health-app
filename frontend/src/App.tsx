@@ -21,6 +21,7 @@ import PsychologistList from './pages/PsychologistList';
 import MoodStats from './pages/MoodStats';
 import AdminHospitals from './pages/AdminHospitals';
 import PsySchedule from './pages/PsySchedule';
+import ScheduleTemplate from './pages/psychologist/ScheduleTemplate';
 import AdminReports from './pages/AdminReports';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -121,6 +122,9 @@ function AppRoutes() {
         <PrivateRoute>
           <MainLayout><PsySchedule /></MainLayout>
         </PrivateRoute>
+      } />
+      <Route path="/schedule-template" element={
+        <PrivateRoute><MainLayout><ScheduleTemplate /></MainLayout></PrivateRoute>
       } />
       <Route path="/report" element={
         <PrivateRoute>

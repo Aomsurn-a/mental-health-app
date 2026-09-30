@@ -10,6 +10,7 @@ import {
 import dayjs from 'dayjs';
 import { patientService } from '../services/patientService';
 import type { Patient, PatientDetail } from '../services/patientService';
+import PatientProfile from './psychologist/PatientProfile';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -55,6 +56,7 @@ const PsyPatients: React.FC = () => {
   const [selectedApptId, setSelectedApptId] = useState<number | null>(null);
   const [recordForm] = Form.useForm();
   const [recordLoading, setRecordLoading] = useState(false);
+  const [profileRevision, setProfileRevision] = useState(0);
 
   const handleSearch = (value: string) => setSearchText(value);
   const query = searchText.trim().toLowerCase();
@@ -121,6 +123,7 @@ const PsyPatients: React.FC = () => {
       });
       message.success(selectedRecord ? 'อัพเดทบันทึกสำเร็จ' : 'บันทึกสำเร็จ');
       setRecordDetailOpen(false);
+      setProfileRevision(n => n + 1);
       const data = await patientService.getPatientDetail(selectedPatient.id);
       setPatientDetail(data);
     } catch {
@@ -269,6 +272,7 @@ const PsyPatients: React.FC = () => {
         footer={null}
         width={900}
       >
+        {modalOpen && selectedPatient && <PatientProfile key={selectedPatient.id} patientId={selectedPatient.id} revision={profileRevision} />}
         {detailLoading ? (
           <div className="psy-loading" role="status"><Spin size="small" />กำลังโหลดประวัติผู้ป่วย…</div>
         ) : detailError ? (

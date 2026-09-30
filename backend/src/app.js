@@ -32,6 +32,10 @@ app.use('/api/hospital', hospitalRoutes);
 app.use('/api/schedule', scheduleRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/ai-chat', aiChatRoutes);
+app.use('/api/psychologist', require('./routes/trendRoutes'));
+app.use('/api/psychologist', require('./routes/preSessionRoutes'));
+app.use('/api/psychologist', require('./routes/chatSummaryRoutes'));
+app.use('/api/psychologist', require('./routes/scheduleTemplateRoutes'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Mental Health API is running!' });

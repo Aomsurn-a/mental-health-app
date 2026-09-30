@@ -1,0 +1,13 @@
+.pre-session { display: grid; gap: 16px; margin-bottom: 24px; min-width: 0; }
+.pre-session h5 { margin: 0 0 12px; }
+.pre-session-risks { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.pre-session .ant-alert { overflow-wrap: anywhere; }
+.pre-session-summary .ant-card-head-wrapper { flex-wrap: wrap; gap: 8px; padding-block: 8px; }
+.pre-session-summary .ant-card-head-title { white-space: normal; }
+.pre-session-summary .ant-btn { min-height: 44px; }
+.pre-session-text { line-height: 1.8; white-space: pre-line; overflow-wrap: anywhere; }
+.pre-session-time { display: block; font-size: 12px; line-height: 1.6; }
+@media (max-width: 480px) {
+  .pre-session-summary .ant-card-head { padding-inline: 16px; }
+  .pre-session-summary .ant-card-body { padding: 16px; }
+}

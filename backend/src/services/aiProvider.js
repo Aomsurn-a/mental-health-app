@@ -6,16 +6,16 @@ class AiProviderError extends Error {
   }
 }
 
-function providerConfig() {
+function providerConfig(options = {}) {
   const base = (process.env.MAXPLUS_BASE_URL || 'https://api.maxplus-ai.cc').replace(/\/+$/, '');
-  const path = (process.env.MAXPLUS_API_PATH || '').replace(/^\/+|\/+$/g, '');
+  const path = (options.apiPath ?? process.env.MAXPLUS_API_PATH ?? '').replace(/^\/+|\/+$/g, '');
   const root = (path && !base.endsWith('/' + path) ? base + '/' + path : base).replace(/\/v1$/, '');
   return { url: root + '/v1/messages', model: process.env.MAXPLUS_MODEL?.trim() || 'claude-sonnet-5' };
 }
 
-async function reply(messages, system) {
+async function reply(messages, system, options = {}) {
   if (!process.env.MAXPLUS_API_KEY?.trim()) throw new AiProviderError('AI_NOT_CONFIGURED');
-  const { url, model } = providerConfig();
+  const { url, model } = providerConfig(options);
   let response;
   try {
     response = await fetch(url, {
@@ -25,7 +25,7 @@ async function reply(messages, system) {
         Authorization: 'Bearer ' + process.env.MAXPLUS_API_KEY.trim(),
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({ model, max_tokens: 1024, stream: false, system, messages }),
+      body: JSON.stringify({ model: options.model || model, max_tokens: 1024, stream: false, system, messages }),
       signal: AbortSignal.timeout(30000),
     });
   } catch (error) {
