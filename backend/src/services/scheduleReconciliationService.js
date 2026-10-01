@@ -39,38 +39,57 @@ async function applyCurrentTwoWeeks(psychologistId, { pool = db, today = bangkok
     const [appointments] = await conn.query(`SELECT DATE_FORMAT(appointment_date, '%Y-%m-%d') AS work_date, appointment_time
       FROM appointments WHERE psychologist_id = ? AND appointment_date BETWEEN ? AND ?
       AND active_flag = ? AND status NOT IN (?, ?) FOR UPDATE`, [psychologistId, starts[0], end, 1, 'rejected', 'cancelled']);
-    const result = { status: 'applied', created: 0, updated: 0, protectedSlots: [], weekStarts: starts };
+    const result = { status: 'applied', created: 0, updated: 0, restored: 0, protectedSlots: [], weekStarts: starts };
     for (const start of starts) {
       const weekEnd = shiftDate(start, 6), actor = owners[0].user_id;
       const [weeks] = await conn.query('SELECT id FROM psychologist_schedule_weeks WHERE psychologist_id = ? AND week_start = ? AND active_flag = ? FOR UPDATE', [psychologistId, start, 1]);
       if (weeks.length > 1) throw inputError('พบตารางสัปดาห์ซ้ำ กรุณาตรวจสอบตารางรายสัปดาห์ก่อนแก้ไข ระบบยังไม่เปลี่ยนข้อมูล', 409);
+      let weekId = weeks[0]?.id;
+      let restoringDeletedWeek = false;
+      if (!weekId) {
+        const [history] = await conn.query(`SELECT id FROM psychologist_schedule_weeks
+          WHERE psychologist_id = ? AND week_start = ? AND active_flag = ? ORDER BY id DESC LIMIT 1 FOR UPDATE`, [psychologistId, start, 0]);
+        if (history.length) { weekId = history[0].id; restoringDeletedWeek = true; }
+      }
       let slots = [];
-      if (weeks.length) {
+      if (weekId) {
         [slots] = await conn.query(`SELECT id, DATE_FORMAT(work_date, '%Y-%m-%d') AS work_date, start_time, end_time,
-          day_of_week, max_patients_per_slot FROM psychologist_schedules
-          WHERE week_id = ? AND psychologist_id = ? AND active_flag = ? FOR UPDATE`, [weeks[0].id, psychologistId, 1]);
+          day_of_week, max_patients_per_slot, active_flag FROM psychologist_schedules
+          WHERE week_id = ? AND psychologist_id = ? ${restoringDeletedWeek ? '' : 'AND active_flag = ?'} FOR UPDATE`,
+        restoringDeletedWeek ? [weekId, psychologistId] : [weekId, psychologistId, 1]);
       }
       const bookings = appointments.filter(a => a.work_date >= start && a.work_date <= weekEnd);
       const contains = (slot, appointment) => slot.work_date === appointment.work_date && appointment.appointment_time >= slot.start_time && appointment.appointment_time < slot.end_time;
       // นัดที่ไม่มีช่วงตารางรองรับ (เช่นลบสัปดาห์ไปแล้ว) ห้ามเดาระยะเวลานัดหรือสร้างทับ ต้องให้ตรวจสอบก่อน
+      const assigned = new Map();
+      for (const booking of bookings) {
+        const candidates = slots.filter(slot => contains(slot, booking)).sort((a, b) => b.active_flag - a.active_flag || b.id - a.id);
+        if (candidates.length) assigned.set(candidates[0].id, (assigned.get(candidates[0].id) || 0) + 1);
+      }
       if (bookings.some(a => !slots.some(s => contains(s, a)))) {
         throw inputError(`พบการนัดหมายที่ไม่มีช่วงตารางรองรับในสัปดาห์ ${start} กรุณาตรวจสอบนัดหมายและตารางงานก่อน ระบบยังไม่เปลี่ยนทั้ง 2 สัปดาห์`, 409);
       }
-      const protectedSlots = slots.filter(s => bookings.some(a => contains(s, a)));
+      const protectedSlots = slots.filter(slot => assigned.has(slot.id));
       result.protectedSlots.push(...protectedSlots.map(s => ({ work_date: s.work_date, start_time: s.start_time, end_time: s.end_time,
-        appointmentCount: bookings.filter(a => contains(s, a)).length })));
-      let weekId = weeks[0]?.id;
+        appointmentCount: assigned.get(s.id) })));
       if (!weekId) {
         const [inserted] = await conn.query('INSERT INTO psychologist_schedule_weeks (psychologist_id, week_start, week_end, created_by, updated_by) VALUES (?, ?, ?, ?, ?)', [psychologistId, start, weekEnd, actor, actor]);
         weekId = inserted.insertId;
         result.created++;
+      } else if (restoringDeletedWeek) {
+        await conn.query('UPDATE psychologist_schedule_weeks SET active_flag = ?, updated_by = ? WHERE id = ? AND psychologist_id = ?', [1, actor, weekId, psychologistId]);
+        result.restored++;
       } else {
         result.updated++;
+      }
+      if (weeks.length || restoringDeletedWeek) {
         const keptIds = new Set(protectedSlots.map(s => s.id));
         for (const slot of slots) {
-          if (!keptIds.has(slot.id)) await conn.query('UPDATE psychologist_schedules SET active_flag = ?, updated_by = ? WHERE id = ? AND psychologist_id = ?', [0, actor, slot.id, psychologistId]);
+          if (keptIds.has(slot.id)) {
+            if (!slot.active_flag) await conn.query('UPDATE psychologist_schedules SET active_flag = ?, updated_by = ? WHERE id = ? AND psychologist_id = ?', [1, actor, slot.id, psychologistId]);
+          } else if (slot.active_flag) await conn.query('UPDATE psychologist_schedules SET active_flag = ?, updated_by = ? WHERE id = ? AND psychologist_id = ?', [0, actor, slot.id, psychologistId]);
         }
-        await conn.query('UPDATE psychologist_schedule_weeks SET updated_at = CURRENT_TIMESTAMP, updated_by = ? WHERE id = ? AND psychologist_id = ?', [actor, weekId, psychologistId]);
+        if (!restoringDeletedWeek) await conn.query('UPDATE psychologist_schedule_weeks SET updated_at = CURRENT_TIMESTAMP, updated_by = ? WHERE id = ? AND psychologist_id = ?', [actor, weekId, psychologistId]);
       }
       for (const template of templates) {
         const slot = { ...template, work_date: shiftDate(start, (template.day_of_week + 6) % 7) };

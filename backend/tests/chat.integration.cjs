@@ -38,14 +38,19 @@ const listen = server => new Promise(resolve=>server.listen(0,'127.0.0.1',()=>re
    assert.equal(received.model,configuredModel);
    const screening = received.system.startsWith('RISK_CLASSIFIER_V1');
    if (!screening) assert.match(received.system,/ไม่เข้าข้างจนเกินไป/);
-   const context = screening ? JSON.parse(received.messages[0].content) : received.messages;
+   const payload = screening ? JSON.parse(received.messages[0].content) : null;
+   const context = screening ? payload.conversation_context : received.messages;
    assert.ok(context.length <= 20);
    assert.ok(context.every(m => Object.keys(m).sort().join(',') === 'content,role'));
+   if (screening) assert.equal(payload.target_message, [...context].reverse().find(m=>m.role==='user')?.content);
    await new Promise(resolve=>setTimeout(resolve,120));
    res.setHeader('Content-Type','application/json');
    if(providerMode==='failure'){res.statusCode=503;res.end(JSON.stringify({error:{type:'service_unavailable'}}));}
    else if (!screening && providerMode==='reply-failure') {res.statusCode=503;res.end('{}');}
-   else if (screening) res.end(JSON.stringify({content:[{type:'text',text:providerMode==='invalid-screening' ? '{"self_harm":"false"}' : JSON.stringify({self_harm:context.at(-1).content==='คืนนี้จะหายไปตลอดกาล',harm_others:false,imminent:false,uncertain:context.at(-1).content==='ไม่แน่ใจว่าจะคุมตัวเองไหว'})}]}));
+   else if (screening) {
+    const target=payload.target_message;
+    res.end(JSON.stringify({content:[{type:'text',text:providerMode==='invalid-screening' ? '{"self_harm":"false"}' : JSON.stringify({self_harm:target==='คืนนี้จะหายไปตลอดกาล',harm_others:false,imminent:false,uncertain:['ไม่แน่ใจว่าจะคุมตัวเองไหว','เทสๆ ทดสอบระบบ'].includes(target)})}]}));
+   }
    else res.end(JSON.stringify({content:[{type:'thinking',thinking:'ignored'},{type:'text',text:'ได้ยินว่าคุณกำลังรู้สึกหนักใจ'},{type:'text',text:'อยากเล่าให้ฟังไหมว่าเกิดอะไรขึ้น'}]}));
   });
   process.env.MAXPLUS_BASE_URL=await listen(providerServer);
@@ -145,6 +150,10 @@ const listen = server => new Promise(resolve=>server.listen(0,'127.0.0.1',()=>re
   assert.equal(r.status,201);assert.equal(r.body.data.screening.uncertain,true);
   assert.equal(r.body.data.risk_alert.status,'queued_for_psychologist');
   record('uncertain safety classification routes for human review');
+  r=await request('/ai-chat/send',tokens.patient,'POST',{message:'เทสๆ ทดสอบระบบ'});
+  assert.equal(r.status,201);assert.equal(r.body.data.screening.uncertain,false);
+  assert.equal(r.body.data.screening.needsReview,false);assert.equal(r.body.data.risk_alert,null);
+  record('generic Thai test message is not escalated, even when classifier returns uncertain and history contains risk content');
   providerMode='invalid-screening';
   r=await request('/ai-chat/send',tokens.patient,'POST',{message:'วันนี้อากาศดี'});
   assert.equal(r.status,201);assert.equal(r.body.data.screening.status,'unavailable');
@@ -161,7 +170,7 @@ const listen = server => new Promise(resolve=>server.listen(0,'127.0.0.1',()=>re
   );
   r=await request('/ai-chat/send',tokens.patient,'POST',{message:'latest-context-boundary'});
   assert.equal(r.status,201);
-  const sentContext=received.system.startsWith('RISK_CLASSIFIER_V1') ? JSON.parse(received.messages[0].content) : received.messages;
+  const sentContext=received.system.startsWith('RISK_CLASSIFIER_V1') ? JSON.parse(received.messages[0].content).conversation_context : received.messages;
   assert.equal(sentContext.length,20);
   assert.equal(sentContext[0].content,'context-boundary-5');
   assert.equal(sentContext.at(-1).content,'latest-context-boundary');

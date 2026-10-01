@@ -124,6 +124,13 @@ const AdminUsers: React.FC = () => {
       },
     },
     {
+      title: 'เพศนักจิตวิทยา',
+      dataIndex: 'gender',
+      render: (gender: UserAdmin['gender'], record: UserAdmin) => record.role !== 'psychologist'
+        ? '-'
+        : gender === 'male' ? 'ชาย' : gender === 'female' ? 'หญิง' : <Text type="warning">ยังไม่ระบุ</Text>,
+    },
+    {
       title: 'สถานะ',
       dataIndex: 'status',
       render: (status: string) => (
@@ -225,6 +232,12 @@ const AdminUsers: React.FC = () => {
               <Form.Item name="license_number" label="เลขใบอนุญาต" rules={[{ required: true }]}>
                 <Input placeholder="เลขใบอนุญาต" />
               </Form.Item>
+              <Form.Item name="gender" label="เพศ" rules={[{ required: true, message: 'กรุณาเลือกเพศ' }]}>
+                <Select placeholder="เลือกเพศ">
+                  <Select.Option value="male">ชาย</Select.Option>
+                  <Select.Option value="female">หญิง</Select.Option>
+                </Select>
+              </Form.Item>
               <Form.Item name="specialty" label="ความเชี่ยวชาญ">
                 <Input placeholder="ความเชี่ยวชาญ" />
               </Form.Item>
@@ -277,6 +290,14 @@ const AdminUsers: React.FC = () => {
               <Select.Option value="suspended">ระงับ</Select.Option>
             </Select>
           </Form.Item>
+          {selectedUser?.role === 'psychologist' && (
+            <Form.Item name="gender" label="เพศนักจิตวิทยา" rules={[{ required: true, message: 'กรุณาเลือกเพศ' }]}>
+              <Select placeholder="เลือกเพศ">
+                <Select.Option value="male">ชาย</Select.Option>
+                <Select.Option value="female">หญิง</Select.Option>
+              </Select>
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 

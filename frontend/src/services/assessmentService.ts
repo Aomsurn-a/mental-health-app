@@ -28,6 +28,7 @@ export interface AssessmentResult {
 
 export interface MyResult {
   id: number;
+  set_id: number;
   score: number;
   risk_level: string;
   recommendation: string;

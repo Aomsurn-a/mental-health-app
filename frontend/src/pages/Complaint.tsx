@@ -1,14 +1,12 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { Card, Button, Form, Select, Input, Typography, Table, Tag, Modal, Row, Col, message } from 'antd';
+import { Card, Button, Form, Select, Input, Typography, Table, Tag, Modal, Row, Col, message, Alert } from 'antd';
 import { PlusOutlined, DownloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { complaintService } from '../services/complaintService';
 import type { Complaint } from '../services/complaintService';
 import { appointmentService } from '../services/appointmentService';
-import type { MyPsychologist, CurrentPsychologist } from '../services/appointmentService';
-import { hospitalService } from '../services/hospitalService';
-import type { SameHospitalPsychologist } from '../services/hospitalService';
+import type { MyPsychologist, CurrentPsychologist, RandomPsychologist } from '../services/appointmentService';
 import { reportService } from '../services/reportService';
 
 const { Title, Text } = Typography;
@@ -38,7 +36,8 @@ const ComplaintPage: React.FC = () => {
 
   const [myPsychologists, setMyPsychologists] = useState<MyPsychologist[]>([]);
   const [currentPsychologist, setCurrentPsychologist] = useState<CurrentPsychologist | null>(null);
-  const [sameHospitalPsychologists, setSameHospitalPsychologists] = useState<SameHospitalPsychologist[]>([]);
+  const [replacementPsychologist, setReplacementPsychologist] = useState<RandomPsychologist | null>(null);
+  const [replacementError, setReplacementError] = useState('');
   const [optionsLoading, setOptionsLoading] = useState(false);
 
   const fetchComplaints = async () => {
@@ -55,7 +54,9 @@ const ComplaintPage: React.FC = () => {
   }, []);
 
   const handleTypeChange = async (type: string) => {
-    form.setFieldsValue({ target_id: undefined, full_legal_name: undefined });
+    form.setFieldsValue({ target_id: undefined, full_legal_name: undefined, replacement_gender: undefined });
+    setReplacementPsychologist(null);
+    setReplacementError('');
     if (type === 'report_psychologist') {
       setOptionsLoading(true);
       try {
@@ -67,21 +68,32 @@ const ComplaintPage: React.FC = () => {
         setOptionsLoading(false);
       }
     } else if (type === 'change_psychologist') {
+      setCurrentPsychologist(null);
       setOptionsLoading(true);
       try {
         const current = await appointmentService.getCurrentPsychologist();
         setCurrentPsychologist(current);
-        if (current) {
-          const others = await hospitalService.getPsychologistsSameHospital(current.psychologist_id);
-          setSameHospitalPsychologists(others);
-        } else {
-          setSameHospitalPsychologists([]);
-        }
       } catch {
         message.error('โหลดรายชื่อนักจิตวิทยาไม่สำเร็จ');
       } finally {
         setOptionsLoading(false);
       }
+    }
+  };
+
+  const randomizeReplacement = async (gender: 'male' | 'female') => {
+    form.setFieldValue('target_id', undefined);
+    setReplacementPsychologist(null);
+    setReplacementError('');
+    setOptionsLoading(true);
+    try {
+      const candidate = await appointmentService.getRandomReplacementPsychologist(gender);
+      setReplacementPsychologist(candidate);
+      form.setFieldValue('target_id', candidate.user_id);
+    } catch (error: any) {
+      setReplacementError(error?.response?.data?.message || 'สุ่มนักจิตคนใหม่ไม่สำเร็จ');
+    } finally {
+      setOptionsLoading(false);
     }
   };
 
@@ -93,6 +105,7 @@ const ComplaintPage: React.FC = () => {
         detail: values.detail,
         target_id: values.target_id,
         full_legal_name: values.type === 'change_psychologist' ? values.full_legal_name : undefined,
+        replacement_gender: values.type === 'change_psychologist' ? values.replacement_gender : undefined,
       });
       message.success('ส่งคำร้องสำเร็จ!');
       setModalOpen(false);
@@ -220,22 +233,19 @@ const ComplaintPage: React.FC = () => {
 
           {selectedType === 'change_psychologist' && (
             <>
-              <Form.Item name="target_id" label="เลือกนักจิตคนใหม่ที่ต้องการเปลี่ยนไปหา"
-                rules={[{ required: true, message: 'กรุณาเลือกนักจิตวิทยา' }]}>
+              <Form.Item name="replacement_gender" label="เลือกเพศนักจิตวิทยาคนใหม่"
+                rules={[{ required: true, message: 'กรุณาเลือกเพศนักจิตวิทยา' }]}>
                 <Select
-                  placeholder="เลือกนักจิตวิทยา"
+                  placeholder="เลือกชายหรือหญิง"
                   loading={optionsLoading}
-                  notFoundContent={
-                    currentPsychologist
-                      ? 'ไม่พบนักจิตวิทยาท่านอื่นในโรงพยาบาลเดียวกัน'
-                      : 'ไม่พบนักจิตวิทยาปัจจุบันของคุณ (ต้องมีนัดหมายที่อนุมัติแล้วก่อน)'
-                  }
-                  options={sameHospitalPsychologists.map(p => ({
-                    value: p.user_id,
-                    label: `${p.first_name} ${p.last_name} — ${p.specialty}`,
-                  }))}
+                  disabled={!currentPsychologist}
+                  onChange={value => randomizeReplacement(value)}
+                  options={[{ value: 'male', label: 'ชาย' }, { value: 'female', label: 'หญิง' }]}
                 />
               </Form.Item>
+              <Form.Item name="target_id" hidden rules={[{ required: true, message: 'ยังไม่พบนักจิตคนใหม่ที่ตรงเงื่อนไข' }]}><Input /></Form.Item>
+              {replacementPsychologist && <Alert type="success" showIcon message="สุ่มนักจิตคนใหม่ให้แล้ว" description={`${replacementPsychologist.first_name} ${replacementPsychologist.last_name}${replacementPsychologist.specialty ? ` — ${replacementPsychologist.specialty}` : ''}`} style={{ marginBottom: 16 }} />}
+              {replacementError && <Alert type="warning" showIcon message={replacementError} style={{ marginBottom: 16 }} />}
               <Form.Item name="full_legal_name" label="ชื่อ-นามสกุลจริง (ตามบัตรประชาชน)"
                 rules={[{ required: true, message: 'กรุณากรอกชื่อ-นามสกุลจริง' }]}>
                 <Input placeholder="ชื่อ-นามสกุลตามบัตรประชาชน" />

@@ -317,11 +317,6 @@ const reportController = {
       const requesterName = complaint.full_legal_name
         || (senderRows.length > 0 ? `${senderRows[0].first_name || ''} ${senderRows[0].last_name || ''}`.trim() : '-');
 
-      const [adminRows] = await conn.query('SELECT first_name, last_name FROM users WHERE id = ?', [admin_id]);
-      const adminName = adminRows.length > 0
-        ? `${adminRows[0].first_name || ''} ${adminRows[0].last_name || ''}`.trim()
-        : '-';
-
       await conn.beginTransaction();
 
       const [result] = await conn.query(
@@ -341,7 +336,6 @@ const reportController = {
         newPsyName: `${newPsy.first_name} ${newPsy.last_name}`,
         reason: complaint.detail,
         date: new Date(),
-        adminName,
       });
 
       await conn.query('UPDATE hospital_reports SET pdf_path = ? WHERE id = ?', [relativePath, reportId]);
@@ -426,7 +420,7 @@ const reportController = {
   },
 };
 
-function generateHospitalReportPdf(filePath, { requesterName, oldPsyName, newPsyName, reason, date, adminName }) {
+function generateHospitalReportPdf(filePath, { requesterName, oldPsyName, newPsyName, reason, date }) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50 });
     const stream = fs.createWriteStream(filePath);
@@ -455,8 +449,15 @@ function generateHospitalReportPdf(filePath, { requesterName, oldPsyName, newPsy
     doc.text('หมายเหตุ: กรุณานำเอกสารนี้พร้อมบัตรประชาชนและบัตรนัดเดิม ติดต่อโรงพยาบาลด้วยตนเอง');
     doc.moveDown(1);
     doc.text(`วันที่ออกเอกสาร: ${date.toLocaleDateString('en-GB')}`);
-    doc.moveDown(0.5);
-    doc.text(`ผู้ออกเอกสาร: ${adminName}`);
+
+    // วางช่องลงชื่อสามบรรทัดชิดมุมซ้ายล่าง และขึ้นหน้าใหม่ถ้าเนื้อหายาวจนใกล้ชน
+    const signatureTop = doc.page.height - doc.page.margins.bottom - 66;
+    if (doc.y > signatureTop - 24) doc.addPage();
+    const signatureY = doc.page.height - doc.page.margins.bottom - 66;
+    const signatureX = doc.page.margins.left;
+    doc.text('ลงชื่อ ................................', signatureX, signatureY);
+    doc.text('(ชื่อ ...................................) ตำแหน่ง ..........................', signatureX, signatureY + 20);
+    doc.text('วันที่ ..................................', signatureX, signatureY + 40);
 
     doc.end();
     stream.on('finish', resolve);

@@ -101,7 +101,7 @@ function TemplateEditor() {
       setProtectedSlots(result.protectedSlots);
       setNotice(result.status === 'skipped'
         ? { type: 'info', text: 'ยังไม่มีตารางงานประจำ ระบบไม่เปลี่ยนตารางเดิม' }
-        : { type: 'success', text: `ใช้ตารางงานประจำล่าสุดแล้ว · แก้ไข ${result.updated} สัปดาห์ · สร้างใหม่ ${result.created} สัปดาห์ โดยคงช่วงที่มีนัดหมายไว้` });
+        : { type: 'success', text: `ใช้ตารางงานประจำล่าสุดแล้ว · แก้ไข ${result.updated} สัปดาห์ · สร้างใหม่ ${result.created} สัปดาห์ · กู้คืน ${result.restored} สัปดาห์ โดยคงช่วงที่มีนัดหมายไว้` });
     } catch (e) { setError(errorMessage(e)); }
     finally { setGenerating(false); }
   }

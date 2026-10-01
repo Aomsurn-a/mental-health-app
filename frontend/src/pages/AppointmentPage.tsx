@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Button, Form, Select, Input, Typography, Table, Tag, Modal, message } from 'antd';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Card, Button, Form, Select, Input, Typography, Table, Tag, Modal, message, Alert } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { appointmentService } from '../services/appointmentService';
@@ -31,9 +31,11 @@ const AppointmentPage: React.FC = () => {
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedPsyId, setSelectedPsyId] = useState<number | undefined>(undefined);
+  const [assignmentError, setAssignmentError] = useState('');
   const [form] = Form.useForm();
+  const handledPsyId = useRef('');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [psyData, apptData, hospitalData] = await Promise.all([
         appointmentService.getPsychologists(),
@@ -46,17 +48,13 @@ const AppointmentPage: React.FC = () => {
     } catch {
       message.error('โหลดข้อมูลไม่สำเร็จ');
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
-  const psychologistsInHospital = selectedHospitalId
-    ? psychologists.filter(p => p.hospital_id === selectedHospitalId)
-    : psychologists;
-
-  const fetchAvailableSlots = async (psyId: number) => {
+  const fetchAvailableSlots = useCallback(async (psyId: number) => {
     setSlotsLoading(true);
     setAvailableSlots([]);
     form.setFieldValue('slot_id', undefined);
@@ -68,7 +66,7 @@ const AppointmentPage: React.FC = () => {
     } finally {
       setSlotsLoading(false);
     }
-  };
+  }, [form]);
 
   const handleSubmit = async (values: any) => {
     const slot = availableSlots.find(s => s.id === values.slot_id);
@@ -80,21 +78,40 @@ const AppointmentPage: React.FC = () => {
     try {
       await appointmentService.createAppointment({
         psychologist_id: values.psychologist_id,
+        hospital_id: values.hospital_id,
+        gender: values.gender,
         appointment_date: slot.work_date,
         appointment_time: slot.start_time,
-        location: values.location,
-        note: values.note,
+        consultation_topic: values.consultation_topic,
+        patient_note: values.patient_note,
       });
       message.success('ส่งคำขอนัดหมายสำเร็จ!');
       setModalOpen(false);
       form.resetFields();
       fetchData();
-    } catch {
-      message.error('ส่งคำขอไม่สำเร็จ');
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'ส่งคำขอไม่สำเร็จ');
     } finally {
       setLoading(false);
     }
   };
+
+  const randomizePsychologist = useCallback(async (hospitalId: number, gender: 'male' | 'female') => {
+    setAssignmentError('');
+    setSelectedPsyId(undefined);
+    setAvailableSlots([]);
+    form.setFieldsValue({ psychologist_id: undefined, slot_id: undefined });
+    try {
+      const candidate = await appointmentService.getRandomPsychologist(hospitalId, gender);
+      setSelectedPsyId(candidate.id);
+      form.setFieldValue('psychologist_id', candidate.id);
+      await fetchAvailableSlots(candidate.id);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 'ไม่พบเวลาว่างของนักจิตเพศที่เลือก';
+      setAssignmentError(errorMessage);
+      message.warning(errorMessage);
+    }
+  }, [fetchAvailableSlots, form]);
 
   const handleCancel = async (id: number) => {
     try {
@@ -110,26 +127,27 @@ const AppointmentPage: React.FC = () => {
 
   useEffect(() => {
     const psyId = searchParams.get('psy_id');
-    if (psyId && psychologists.length > 0) {
-      // เปิด Modal และเลือกโรงพยาบาล + psychologist อัตโนมัติ
+    if (psyId && psyId !== handledPsyId.current && psychologists.length > 0) {
+      handledPsyId.current = psyId;
+      // ใช้คลินิกและเพศของคำแนะนำเพื่อสุ่มนักจิตตามขั้นตอนใหม่
       const psy = psychologists.find(p => p.id === Number(psyId));
-      setModalOpen(true);
-      if (psy?.hospital_id) {
+      if (psy?.hospital_id && psy.gender) {
+        setModalOpen(true);
         setSelectedHospitalId(psy.hospital_id);
-        form.setFieldValue('hospital_id', psy.hospital_id);
+        form.setFieldsValue({ hospital_id: psy.hospital_id, gender: psy.gender });
+        randomizePsychologist(psy.hospital_id, psy.gender);
+      } else if (psy) {
+        message.warning('โปรดเลือกคลินิกและเพศนักจิตเพื่อสุ่มผู้ให้บริการ');
       }
-      form.setFieldValue('psychologist_id', Number(psyId));
-      setSelectedPsyId(Number(psyId));
-      fetchAvailableSlots(Number(psyId));
     }
-  }, [searchParams, psychologists]);
+  }, [searchParams, psychologists, form, randomizePsychologist]);
 
   const columns = [
     {
       title: 'นักจิตวิทยา',
       render: (_: any, record: Appointment) => (
         <div>
-          <Text strong>นพ./พญ. {record.first_name} {record.last_name}</Text>
+        <Text strong>{record.first_name} {record.last_name}</Text>
           <br />
           <Text type="secondary">{record.specialty}</Text>
         </div>
@@ -145,6 +163,7 @@ const AppointmentPage: React.FC = () => {
         </div>
       ),
     },
+    { title: 'เรื่องที่ปรึกษา', dataIndex: 'consultation_topic', render: (topic: string) => topic || '-' },
     {
       title: 'สถานที่',
       dataIndex: 'location',
@@ -218,6 +237,8 @@ const AppointmentPage: React.FC = () => {
               onChange={val => {
                 setSelectedHospitalId(val);
                 setSelectedPsyId(undefined);
+                setAssignmentError('');
+                form.setFieldValue('gender', undefined);
                 setAvailableSlots([]);
                 form.setFieldValue('psychologist_id', undefined);
                 form.setFieldValue('slot_id', undefined);
@@ -225,21 +246,18 @@ const AppointmentPage: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item name="psychologist_id" label="ขั้นตอนที่ 2: เลือกนักจิตวิทยา"
-            rules={[{ required: true, message: 'กรุณาเลือกนักจิตวิทยา' }]}>
+          <Form.Item name="gender" label="ขั้นตอนที่ 2: เลือกเพศนักจิตวิทยา"
+            rules={[{ required: true, message: 'กรุณาเลือกเพศนักจิตวิทยา' }]}>
             <Select
-              placeholder={selectedHospitalId ? 'เลือกนักจิตวิทยา' : 'กรุณาเลือกโรงพยาบาลก่อน'}
+              placeholder={selectedHospitalId ? 'เลือกชายหรือหญิง' : 'กรุณาเลือกโรงพยาบาลก่อน'}
               disabled={!selectedHospitalId}
-              notFoundContent="ไม่มีนักจิตวิทยาในโรงพยาบาลนี้"
-              onChange={val => { setSelectedPsyId(val); fetchAvailableSlots(val); }}
-            >
-              {psychologistsInHospital.map(p => (
-                <Select.Option key={p.id} value={p.id}>
-                  {p.first_name} {p.last_name} — {p.specialty}
-                </Select.Option>
-              ))}
-            </Select>
+              onChange={value => selectedHospitalId && randomizePsychologist(selectedHospitalId, value)}
+              options={[{ value: 'male', label: 'ชาย' }, { value: 'female', label: 'หญิง' }]}
+            />
           </Form.Item>
+
+          <Form.Item name="psychologist_id" hidden rules={[{ required: true, message: 'กำลังสุ่มนักจิตวิทยา' }]}><Input /></Form.Item>
+          {assignmentError && <Alert type="warning" showIcon message={assignmentError} style={{ marginBottom: 16 }} />}
 
           <Form.Item name="slot_id" label="ขั้นตอนที่ 3: เลือกวันเวลาที่ว่าง"
             rules={[{ required: true, message: 'กรุณาเลือกวันเวลาที่ว่าง' }]}>
@@ -257,12 +275,13 @@ const AppointmentPage: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item name="location" label="สถานที่">
-            <Input placeholder="ระบุสถานที่นัดหมาย" />
+          <Form.Item name="consultation_topic" label="ขั้นตอนที่ 4: เรื่องที่ต้องการปรึกษา"
+            rules={[{ required: true, whitespace: true, message: 'กรุณาระบุเรื่องที่ต้องการปรึกษา' }]}>
+            <TextArea rows={3} maxLength={1000} showCount placeholder="ระบุเรื่องหรือประเด็นที่ต้องการพูดคุยกับนักจิตวิทยา" />
           </Form.Item>
 
-          <Form.Item name="note" label="หมายเหตุ">
-            <TextArea rows={3} placeholder="เรื่องที่ต้องการปรึกษา..." />
+          <Form.Item name="patient_note" label="ขั้นตอนที่ 5: หมายเหตุ">
+            <TextArea rows={2} maxLength={1000} showCount placeholder="ข้อมูลเพิ่มเติมสำหรับนักจิตวิทยา (ไม่บังคับ)" />
           </Form.Item>
         </Form>
       </Modal>

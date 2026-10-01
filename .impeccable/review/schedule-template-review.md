@@ -52,3 +52,11 @@ No new global rule or pre-existing design drift was canonized.
 - TypeScript + production build: passed; existing bundle-size warning remains.
 - Database migration: applied; real-data cron dry-run found no templates and created no weekly data.
 - Legacy manual-create concurrency limitation is documented in backend/SCHEDULE_TEMPLATES.md.
+
+## 2026-10-01 follow-up
+
+- Updated the edit action to reconcile current and next week from the latest recurring schedule. Existing active appointments keep their original slot and capacity; overlapping new slots are split around it. Deleted weeks restore their prior appointment slot. An appointment with no matching historic slot stops the whole edit and returns a clear error.
+- Backend integration suite passed the follow-up logic, including deleted-week restore, appointments unchanged, concurrent apply, two-week rollback, and empty recurring schedule.
+- TypeScript no-emit check and oxlint passed.
+- Latest screenshot recapture, Edge browser tests, and Vite build were blocked by `spawn EPERM`; earlier screenshots show the previous button behavior and are not evidence for the follow-up UI.
+- Role shell gradients were applied and documented in DESIGN.md; visual browser recapture remains unverified.

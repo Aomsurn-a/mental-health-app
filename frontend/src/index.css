@@ -4,21 +4,21 @@
   color: #294F80; background: #EAF4FF; color-scheme: light; font-size: 16px; line-height: 1.5; font-weight: 400;
   --font-ui: 'Noto Sans Thai', Arial, sans-serif; --focus-ring: #286CC1; --role-primary: #3F76C9;
   --role-primary-soft: #E8F2FF; --role-secondary: #78B4E8;
-  --role-bg: #EAF4FF; --role-text: #294F80; --role-border: #D5E5F8; --surface: #FFFFFF;
+  --role-bg: #EAF4FF; --role-bg-gradient: linear-gradient(to top, #A9CCFA 0%, #D7E8FF 46%, #F7FBFF 100%); --role-text: #294F80; --role-border: #D5E5F8; --surface: #FFFFFF;
   --text-secondary: #5D7390; --shadow-soft: 0 10px 28px rgba(18, 48, 74, .08);
 }
 * { box-sizing: border-box; }
-body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--role-bg); }
+body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--role-bg-gradient); }
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 ::selection { color: #12304A; background: #BFDBFE; }
 :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 a { text-underline-offset: .2em; }
 #root { min-height: 100vh; }
-.app-frame.role-user { --role-primary: #3F76C9; --role-primary-soft: #E8F2FF; --role-secondary: #78B4E8; --role-bg: #EAF4FF; --role-text: #294F80; --role-border: #D5E5F8; --text-secondary: #5D7390; }
-.app-frame.role-psychologist { --role-primary: #475569; --role-primary-soft: #F1F5F9; --role-secondary: #0F766E; --role-bg: #F8FAFC; --role-text: #1E293B; --role-border: #E2E8F0; --text-secondary: #52616B; }
-.app-frame.role-admin { --role-primary: #166534; --role-primary-soft: #F0FDF4; --role-secondary: #0F766E; --role-bg: #F6F8F7; --role-text: #172B3A; --role-border: #D1D5DB; --text-secondary: #52616B; }
-.app-frame.ant-layout { min-height: 100vh; background: var(--role-bg); }
+.app-frame.role-user { --role-primary: #3F76C9; --role-primary-soft: #E8F2FF; --role-secondary: #78B4E8; --role-bg: #EAF4FF; --role-bg-gradient: linear-gradient(to top, #A9CCFA 0%, #D7E8FF 46%, #F7FBFF 100%); --role-text: #294F80; --role-border: #D5E5F8; --text-secondary: #5D7390; }
+.app-frame.role-psychologist { --role-primary: #475569; --role-primary-soft: #F1F5F9; --role-secondary: #0F766E; --role-bg: #F8FAFC; --role-bg-gradient: linear-gradient(to top, #E7EDF4 0%, #F8FAFC 62%, #FFFFFF 100%); --role-text: #1E293B; --role-border: #E2E8F0; --text-secondary: #52616B; }
+.app-frame.role-admin { --role-primary: #166534; --role-primary-soft: #F0FDF4; --role-secondary: #0F766E; --role-bg: #F6F8F7; --role-bg-gradient: linear-gradient(to top, #E6EEE9 0%, #F6F8F7 62%, #FFFFFF 100%); --role-text: #172B3A; --role-border: #D1D5DB; --text-secondary: #52616B; }
+.app-frame.ant-layout { min-height: 100vh; background: var(--role-bg-gradient); }
 .app-frame .ant-layout { min-width: 0; background: transparent; }
 .app-frame > .ant-layout-sider { position: sticky; inset-block-start: 0; align-self: flex-start; height: 100vh; height: 100dvh; overflow-y: auto; overflow-x: hidden; z-index: 11; background: var(--surface) !important; border-inline-end: 1px solid var(--role-border); }
 .app-frame > .ant-layout-sider .ant-layout-sider-children { min-height: 100%; }

@@ -5,8 +5,29 @@ const complaintController = {
   // ส่งคำร้อง (user/นักจิต)
   createComplaint: async (req, res) => {
     try {
-      const { type, detail, target_id, full_legal_name } = req.body;
+      const { type, detail, target_id, full_legal_name, replacement_gender } = req.body;
       const sender_id = req.user.id;
+
+      // ยืนยันว่าผู้สมัครเปลี่ยนนักจิตเป็นคนในคลินิกเดิมและไม่เคยนัดหมายด้วยมาก่อน
+      if (type === 'change_psychologist') {
+        if (!target_id || !['male', 'female'].includes(replacement_gender)) {
+          return res.status(400).json({ message: 'กรุณาเลือกเพศและสุ่มนักจิตคนใหม่ก่อนส่งคำร้อง' });
+        }
+        const [current] = await db.query(
+          `SELECT p.hospital_id FROM appointments a JOIN psychologists p ON p.id = a.psychologist_id
+           WHERE a.user_id = ? AND a.active_flag = 1 AND a.status IN ('approved', 'completed')
+           ORDER BY a.appointment_date DESC, a.appointment_time DESC LIMIT 1`, [sender_id]
+        );
+        if (!current.length || !current[0].hospital_id) return res.status(400).json({ message: 'ไม่พบคลินิกของนักจิตวิทยาปัจจุบัน' });
+        const [candidate] = await db.query(
+          `SELECT p.id FROM psychologists p JOIN users u ON u.id = p.user_id
+           JOIN hospitals h ON h.id = p.hospital_id AND h.active_flag = 1 AND h.status = 'active'
+           WHERE p.user_id = ? AND p.hospital_id = ? AND p.gender = ? AND p.active_flag = 1 AND u.status = 'active'
+             AND NOT EXISTS (SELECT 1 FROM appointments old WHERE old.user_id = ? AND old.psychologist_id = p.id AND old.active_flag = 1)`,
+          [target_id, current[0].hospital_id, replacement_gender, sender_id]
+        );
+        if (!candidate.length) return res.status(400).json({ message: 'นักจิตคนใหม่ไม่ตรงกับเพศ/คลินิกที่เลือก หรือเคยมีนัดหมายกับคุณแล้ว กรุณาสุ่มใหม่' });
+      }
 
       const [result] = await db.query(
         `INSERT INTO complaints

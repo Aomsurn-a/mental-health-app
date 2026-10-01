@@ -7,8 +7,10 @@ const adminController = {
   getAllUsers: async (req, res) => {
     try {
       const [rows] = await db.query(
-        `SELECT id, username, email, first_name, last_name, role, phone, province, status, created_at
-         FROM users WHERE active_flag = 1 ORDER BY created_at DESC`
+        `SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.role, u.phone, u.province, u.status, u.created_at,
+                p.gender
+         FROM users u LEFT JOIN psychologists p ON p.user_id = u.id
+         WHERE u.active_flag = 1 ORDER BY u.created_at DESC`
       );
       res.json(rows);
     } catch (error) {
@@ -20,8 +22,11 @@ const adminController = {
   // สร้าง user ใหม่
   createUser: async (req, res) => {
     try {
-      const { username, email, password, first_name, last_name, role, phone, province } = req.body;
+      const { username, email, password, first_name, last_name, role, phone, province, gender } = req.body;
       const admin_id = req.user.id;
+      if (role === 'psychologist' && !['male', 'female'].includes(gender)) {
+        return res.status(400).json({ message: 'กรุณาระบุเพศนักจิตวิทยา' });
+      }
 
       const [existing] = await db.query(
         'SELECT id FROM users WHERE email = ? OR username = ?',
@@ -50,9 +55,9 @@ const adminController = {
       if (role === 'psychologist') {
         const { license_number, specialty, hospital_id, experience_years, bio } = req.body;
         await db.query(
-          `INSERT INTO psychologists (user_id, license_number, specialty, hospital_id, experience_years, bio, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [result.insertId, license_number, specialty, hospital_id || null, experience_years || 0, bio, admin_id]
+          `INSERT INTO psychologists (user_id, gender, license_number, specialty, hospital_id, experience_years, bio, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [result.insertId, gender, license_number, specialty, hospital_id || null, experience_years || 0, bio, admin_id]
         );
       }
 
@@ -67,14 +72,23 @@ const adminController = {
   updateUser: async (req, res) => {
     try {
       const { id } = req.params;
-      const { first_name, last_name, phone, province, status } = req.body;
+      const { first_name, last_name, phone, province, status, gender } = req.body;
       const admin_id = req.user.id;
+
+      const [users] = await db.query('SELECT role FROM users WHERE id = ? AND active_flag = 1', [id]);
+      if (!users.length) return res.status(404).json({ message: 'ไม่พบผู้ใช้งาน' });
+      if (users[0].role === 'psychologist' && !['male', 'female'].includes(gender)) {
+        return res.status(400).json({ message: 'กรุณาระบุเพศนักจิตวิทยา' });
+      }
 
       await db.query(
         `UPDATE users SET first_name = ?, last_name = ?, phone = ?, province = ?, status = ?, updated_by = ?
          WHERE id = ?`,
         [first_name, last_name, phone, province, status, admin_id, id]
       );
+      if (users[0].role === 'psychologist') {
+        await db.query('UPDATE psychologists SET gender = ?, updated_by = ? WHERE user_id = ?', [gender, admin_id, id]);
+      }
 
       res.json({ message: 'แก้ไขข้อมูลสำเร็จ' });
     } catch (error) {

@@ -186,6 +186,8 @@ const PsyAppointment: React.FC = () => {
       dataIndex: 'location',
       render: (loc: string) => loc || '-',
     },
+    { title: 'เรื่องที่ปรึกษา', dataIndex: 'consultation_topic', render: (topic: string) => topic || '-' },
+    { title: 'หมายเหตุผู้ป่วย', dataIndex: 'patient_note', render: (note: string) => note || '-' },
     {
       title: 'หมายเหตุ',
       dataIndex: 'status_note',

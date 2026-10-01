@@ -76,6 +76,18 @@ const assessmentController = {
       const { set_id, answers } = req.body;
       const user_id = req.user.id;
 
+      // ป้องกันการส่ง 8Q หากผู้ใช้ยังไม่มีผลประเมินทั้ง 2Q และ 9Q
+      if (Number(set_id) === 4) {
+        const [prerequisites] = await db.query(
+          `SELECT DISTINCT set_id FROM assessment_results
+           WHERE user_id = ? AND active_flag = 1 AND set_id IN (?, ?)`,
+          [user_id, 2, 3]
+        );
+        if (prerequisites.length < 2) {
+          return res.status(403).json({ message: 'กรุณาทำแบบประเมิน 2Q และ 9Q ก่อนทำแบบประเมิน 8Q' });
+        }
+      }
+
       // คำนวณคะแนนรวม
       const score = Object.values(answers).reduce((sum, val) => sum + Number(val), 0);
 
@@ -112,7 +124,7 @@ const assessmentController = {
     try {
       const user_id = req.user.id;
       const [results] = await db.query(
-        `SELECT ar.id, ar.score, ar.risk_level, ar.recommendation, ar.taken_at,
+        `SELECT ar.id, ar.set_id, ar.score, ar.risk_level, ar.recommendation, ar.taken_at,
                 as2.name as set_name
          FROM assessment_results ar
          JOIN assessment_sets as2 ON ar.set_id = as2.id

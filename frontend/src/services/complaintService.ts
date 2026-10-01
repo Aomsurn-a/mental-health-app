@@ -23,6 +23,7 @@ export interface CreateComplaintRequest {
   detail: string;
   target_id?: number;
   full_legal_name?: string;
+  replacement_gender?: 'male' | 'female';
 }
 
 export interface AiRiskComplaint {

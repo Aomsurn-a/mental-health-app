@@ -17,7 +17,7 @@ const appointmentController = {
   getPsychologists: async (req, res) => {
     try {
       const [rows] = await db.query(
-        `SELECT p.id, p.license_number, p.specialty, p.hospital_id, h.name as hospital_name,
+        `SELECT p.id, p.license_number, p.specialty, p.gender, p.hospital_id, h.name as hospital_name,
                 p.phone, p.experience_years, p.bio,
                 u.id as user_id, u.first_name, u.last_name, u.email
          FROM psychologists p
@@ -29,6 +29,81 @@ const appointmentController = {
     } catch (error) {
       console.error('GetPsychologists error:', error);
       res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+    }
+  },
+
+  // สุ่มนักจิตเพศที่เลือกจากคลินิกเดียวกัน โดยให้เฉพาะผู้ที่ยังมีเวลาว่างในอนาคต
+  getRandomPsychologist: async (req, res) => {
+    try {
+      const hospitalId = Number(req.query.hospital_id);
+      const { gender } = req.query;
+      if (!Number.isInteger(hospitalId) || !['male', 'female'].includes(gender)) {
+        return res.status(400).json({ message: 'กรุณาเลือกคลินิกและเพศนักจิตให้ถูกต้อง' });
+      }
+      const [rows] = await db.query(
+        `SELECT p.id, p.user_id, p.specialty, p.gender, u.first_name, u.last_name
+         FROM psychologists p JOIN users u ON u.id = p.user_id
+         JOIN hospitals h ON h.id = p.hospital_id AND h.active_flag = 1 AND h.status = 'active'
+         WHERE p.hospital_id = ? AND p.gender = ? AND p.active_flag = 1 AND u.status = 'active'
+           AND EXISTS (
+             SELECT 1 FROM psychologist_schedules ps
+             JOIN psychologist_schedule_weeks w ON w.id = ps.week_id AND w.active_flag = 1
+             WHERE ps.psychologist_id = p.id AND ps.active_flag = 1 AND ps.work_date >= CURDATE()
+               AND ps.max_patients_per_slot * TIMESTAMPDIFF(HOUR, ps.start_time, ps.end_time) >
+                 (SELECT COUNT(*) FROM appointments a WHERE a.psychologist_id = p.id
+                   AND a.appointment_date = ps.work_date AND a.appointment_time >= ps.start_time
+                   AND a.appointment_time < ps.end_time AND a.active_flag = 1
+                   AND a.status NOT IN ('rejected', 'cancelled'))
+           )
+         ORDER BY RAND() LIMIT 1`,
+        [hospitalId, gender]
+      );
+      if (!rows.length) return res.status(404).json({ message: 'ไม่พบนักจิตเพศที่เลือกซึ่งมีเวลาว่างในคลินิกนี้' });
+      res.json(rows[0]);
+    } catch (error) {
+      console.error('GetRandomPsychologist error:', error);
+      res.status(500).json({ message: 'สุ่มนักจิตวิทยาไม่สำเร็จ' });
+    }
+  },
+
+  // สุ่มนักจิตคนใหม่ในคลินิกปัจจุบัน และกันทุกคนที่ผู้ใช้เคยนัดหมายด้วยออก
+  getRandomReplacementPsychologist: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { gender } = req.query;
+      if (!['male', 'female'].includes(gender)) return res.status(400).json({ message: 'กรุณาเลือกเพศนักจิตให้ถูกต้อง' });
+      const [current] = await db.query(
+        `SELECT p.hospital_id FROM appointments a JOIN psychologists p ON p.id = a.psychologist_id
+         WHERE a.user_id = ? AND a.active_flag = 1 AND a.status IN ('approved', 'completed')
+         ORDER BY a.appointment_date DESC, a.appointment_time DESC LIMIT 1`,
+        [userId]
+      );
+      if (!current.length || !current[0].hospital_id) return res.status(404).json({ message: 'ไม่พบคลินิกของนักจิตวิทยาปัจจุบัน' });
+      const [rows] = await db.query(
+        `SELECT p.id, p.user_id, p.specialty, p.gender, u.first_name, u.last_name
+         FROM psychologists p JOIN users u ON u.id = p.user_id
+         JOIN hospitals h ON h.id = p.hospital_id AND h.active_flag = 1 AND h.status = 'active'
+         WHERE p.hospital_id = ? AND p.gender = ? AND p.active_flag = 1 AND u.status = 'active'
+           AND NOT EXISTS (SELECT 1 FROM appointments old WHERE old.user_id = ?
+             AND old.psychologist_id = p.id AND old.active_flag = 1)
+           AND EXISTS (
+             SELECT 1 FROM psychologist_schedules ps
+             JOIN psychologist_schedule_weeks w ON w.id = ps.week_id AND w.active_flag = 1
+             WHERE ps.psychologist_id = p.id AND ps.active_flag = 1 AND ps.work_date >= CURDATE()
+               AND ps.max_patients_per_slot * TIMESTAMPDIFF(HOUR, ps.start_time, ps.end_time) >
+                 (SELECT COUNT(*) FROM appointments a WHERE a.psychologist_id = p.id
+                   AND a.appointment_date = ps.work_date AND a.appointment_time >= ps.start_time
+                   AND a.appointment_time < ps.end_time AND a.active_flag = 1
+                   AND a.status NOT IN ('rejected', 'cancelled'))
+           )
+         ORDER BY RAND() LIMIT 1`,
+        [current[0].hospital_id, gender, userId]
+      );
+      if (!rows.length) return res.status(404).json({ message: 'ไม่พบนักจิตเพศที่เลือกซึ่งยังไม่เคยนัดหมายและมีเวลาว่าง' });
+      res.json(rows[0]);
+    } catch (error) {
+      console.error('GetRandomReplacementPsychologist error:', error);
+      res.status(500).json({ message: 'สุ่มนักจิตคนใหม่ไม่สำเร็จ' });
     }
   },
 
@@ -76,9 +151,37 @@ const appointmentController = {
   // ส่งคำขอนัดหมาย
   createAppointment: async (req, res) => {
     try {
-      const { psychologist_id, appointment_time, location, note: status_note } = req.body;
+      const { psychologist_id, hospital_id, gender, appointment_time, location, consultation_topic, patient_note } = req.body;
       const appointment_date = toDateOnly(req.body.appointment_date);
       const user_id = req.user.id;
+
+      if (!psychologist_id || !hospital_id || !['male', 'female'].includes(gender)
+          || typeof consultation_topic !== 'string' || !consultation_topic.trim()) {
+        return res.status(400).json({ message: 'กรุณาระบุคลินิก เพศนักจิต และเรื่องที่ต้องการปรึกษาให้ครบ' });
+      }
+      const [eligible] = await db.query(
+        `SELECT p.id FROM psychologists p JOIN users u ON u.id = p.user_id
+         JOIN hospitals h ON h.id = p.hospital_id AND h.active_flag = 1 AND h.status = 'active'
+         WHERE p.id = ? AND p.hospital_id = ? AND p.gender = ? AND p.active_flag = 1 AND u.status = 'active'`,
+        [psychologist_id, hospital_id, gender]
+      );
+      if (!eligible.length) return res.status(400).json({ message: 'นักจิตวิทยาที่สุ่มได้ไม่ตรงกับคลินิกหรือเพศที่เลือก กรุณาสุ่มใหม่' });
+
+      const [scheduleRows] = await db.query(
+        `SELECT ps.max_patients_per_slot,
+           (ps.max_patients_per_slot * TIMESTAMPDIFF(HOUR, ps.start_time, ps.end_time)) AS capacity,
+           (SELECT COUNT(*) FROM appointments a WHERE a.psychologist_id = ps.psychologist_id
+             AND a.appointment_date = ps.work_date AND a.appointment_time >= ps.start_time
+             AND a.appointment_time < ps.end_time AND a.active_flag = 1
+             AND a.status NOT IN ('rejected', 'cancelled')) AS booked
+         FROM psychologist_schedules ps JOIN psychologist_schedule_weeks w ON w.id = ps.week_id
+         WHERE ps.psychologist_id = ? AND ps.work_date = ? AND ps.active_flag = 1 AND w.active_flag = 1
+           AND ps.start_time <= ? AND ps.end_time > ? LIMIT 1`,
+        [psychologist_id, appointment_date, appointment_time, appointment_time]
+      );
+      if (!scheduleRows.length || Number(scheduleRows[0].booked) >= Number(scheduleRows[0].capacity)) {
+        return res.status(400).json({ message: 'ช่วงเวลานี้ไม่อยู่ในตารางงานหรือเต็มแล้ว กรุณาเลือกเวลาใหม่' });
+      }
 
       // เช็คว่านักจิตว่างในช่วงเวลานั้นไหม
       const [existing] = await db.query(
@@ -94,9 +197,9 @@ const appointmentController = {
 
       const [result] = await db.query(
         `INSERT INTO appointments 
-         (user_id, psychologist_id, appointment_date, appointment_time, location, status_note, created_by, updated_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [user_id, psychologist_id, appointment_date, appointment_time, location, status_note, user_id, user_id]
+         (user_id, psychologist_id, appointment_date, appointment_time, location, consultation_topic, patient_note, created_by, updated_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [user_id, psychologist_id, appointment_date, appointment_time, location || null, consultation_topic.trim(), patient_note || null, user_id, user_id]
       );
 
       res.status(201).json({
@@ -115,7 +218,7 @@ const appointmentController = {
       const user_id = req.user.id;
       const [rows] = await db.query(
         `SELECT a.id, a.appointment_date, a.appointment_time, a.location,
-                a.status, a.status_note, a.created_at,
+                a.status, a.status_note, a.consultation_topic, a.patient_note, a.created_at,
                 u.first_name, u.last_name,
                 p.specialty, h.name as hospital_name
          FROM appointments a
@@ -180,7 +283,7 @@ const appointmentController = {
 
       const [rows] = await db.query(
         `SELECT a.id, a.user_id, a.psychologist_id, a.appointment_date, a.appointment_time, a.location,
-                a.status, a.status_note, a.created_at,
+                a.consultation_topic, a.patient_note, a.status, a.status_note, a.created_at,
                 u.first_name, u.last_name, u.phone, u.email
          FROM appointments a
          JOIN users u ON a.user_id = u.id

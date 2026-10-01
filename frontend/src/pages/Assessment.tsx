@@ -45,6 +45,8 @@ type PageState = 'list' | 'doing' | 'result';
 const Assessment: React.FC = () => {
   const [pageState, setPageState] = useState<PageState>('list');
   const [sets, setSets] = useState<AssessmentSet[]>([]);
+  const [completedSetIds, setCompletedSetIds] = useState<number[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [currentSet, setCurrentSet] = useState<AssessmentSetDetail | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -61,6 +63,15 @@ const Assessment: React.FC = () => {
       try {
         const data = await assessmentService.getSets();
         setSets(data);
+        try {
+          const history = await assessmentService.getMyResults();
+          setCompletedSetIds([...new Set(history.map(item => item.set_id))]);
+        } catch {
+          // ปิดการเข้าถึง 8Q ไว้ก่อน หากตรวจประวัติไม่ได้
+          setCompletedSetIds([]);
+        } finally {
+          setHistoryLoaded(true);
+        }
       } catch {
         console.error('โหลดข้อมูลไม่สำเร็จ');
       } finally {
@@ -72,6 +83,7 @@ const Assessment: React.FC = () => {
 
   // เริ่มทำแบบประเมิน
   const handleStart = async (setId: number) => {
+    if (setId === 4 && (!historyLoaded || ![2, 3].every(id => completedSetIds.includes(id)))) return;
     setLoading(true);
     try {
       const data = await assessmentService.getSetById(setId);
@@ -148,17 +160,31 @@ const Assessment: React.FC = () => {
           <Row gutter={[16, 16]}>
             {sets.map(set => (
               <Col xs={24} sm={12} lg={8} key={set.id}>
+                {(() => {
+                  const isEightQ = set.id === 4;
+                  const canStartEightQ = historyLoaded && [2, 3].every(id => completedSetIds.includes(id));
+                  return (
                 <Card className="assessment-catalog"
                   title={set.name}
                   hoverable
                   actions={[
-                    <Button type="primary" onClick={() => handleStart(set.id)}>
+                    <Button key="start" type="primary" disabled={isEightQ && !canStartEightQ} onClick={() => handleStart(set.id)}>
                       เริ่มประเมิน
                     </Button>
                   ]}
                 >
                   <Text type="secondary">{set.description}</Text>
+                  {isEightQ && (
+                    <Alert
+                      type={canStartEightQ ? 'info' : 'warning'}
+                      showIcon
+                      style={{ marginTop: 12 }}
+                      message="*ทำแบบประเมิน 2Q และ 9Q ก่อนทำแบบประเมิน 8Q"
+                    />
+                  )}
                 </Card>
+                  );
+                })()}
               </Col>
             ))}
           </Row>

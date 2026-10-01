@@ -5,6 +5,8 @@ const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 // User
 router.get('/psychologists', authMiddleware, appointmentController.getPsychologists);
+router.get('/random-psychologist', authMiddleware, roleMiddleware('user'), appointmentController.getRandomPsychologist);
+router.get('/random-replacement-psychologist', authMiddleware, roleMiddleware('user'), appointmentController.getRandomReplacementPsychologist);
 router.get('/my-psychologists', authMiddleware, appointmentController.getMyPsychologists);
 router.get('/current-psychologist', authMiddleware, appointmentController.getCurrentPsychologist);
 router.post('/', authMiddleware, appointmentController.createAppointment);

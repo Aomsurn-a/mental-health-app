@@ -7,6 +7,7 @@ export interface UserAdmin {
   first_name: string;
   last_name: string;
   role: string;
+  gender?: 'male' | 'female' | null;
   phone: string;
   province: string;
   status: string;

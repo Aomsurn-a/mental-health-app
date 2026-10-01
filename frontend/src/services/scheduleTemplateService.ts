@@ -26,6 +26,7 @@ export interface ScheduleApplyResult {
   reason?: 'no_templates';
   created: number;
   updated: number;
+  restored: number;
   weekStarts: string[];
   protectedSlots: { work_date: string; start_time: string; end_time: string; appointmentCount: number }[];
 }

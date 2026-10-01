@@ -5,6 +5,7 @@ export interface Psychologist {
   user_id: number;
   license_number: string;
   specialty: string;
+  gender: 'male' | 'female' | null;
   hospital_id: number | null;
   hospital_name: string | null;
   phone: string;
@@ -27,14 +28,28 @@ export interface Appointment {
   last_name: string;
   specialty: string;
   hospital_name: string;
+  consultation_topic?: string | null;
+  patient_note?: string | null;
 }
 
 export interface CreateAppointmentRequest {
   psychologist_id: number;
+  hospital_id: number;
+  gender: 'male' | 'female';
   appointment_date: string;
   appointment_time: string;
   location?: string;
-  note?: string;
+  consultation_topic: string;
+  patient_note?: string;
+}
+
+export interface RandomPsychologist {
+  id: number;
+  user_id: number;
+  specialty: string | null;
+  gender: 'male' | 'female';
+  first_name: string;
+  last_name: string;
 }
 
 export interface MyPsychologist {
@@ -54,6 +69,16 @@ export interface CurrentPsychologist {
 export const appointmentService = {
   getPsychologists: async (): Promise<Psychologist[]> => {
     const response = await api.get('/appointment/psychologists');
+    return response.data;
+  },
+
+  getRandomPsychologist: async (hospitalId: number, gender: 'male' | 'female'): Promise<RandomPsychologist> => {
+    const response = await api.get('/appointment/random-psychologist', { params: { hospital_id: hospitalId, gender } });
+    return response.data;
+  },
+
+  getRandomReplacementPsychologist: async (gender: 'male' | 'female'): Promise<RandomPsychologist> => {
+    const response = await api.get('/appointment/random-replacement-psychologist', { params: { gender } });
     return response.data;
   },
 

@@ -13,6 +13,7 @@
     "test:pre-session": "node tests/preSession.integration.cjs",
     "test:chat-summary": "node tests/chatSummary.integration.cjs",
     "migrate:schedule-templates": "node scripts/migrate-schedule-templates.cjs",
+    "migrate:appointment-gender": "node scripts/migrate-appointment-gender.cjs",
     "schedules:generate": "node src/jobs/weeklyScheduleGeneratorJob.js",
     "test:schedule-templates": "node tests/scheduleTemplate.integration.cjs"
   },
