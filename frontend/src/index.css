@@ -23,7 +23,11 @@ a { text-underline-offset: .2em; }
 .app-frame > .ant-layout-sider { position: sticky; inset-block-start: 0; align-self: flex-start; height: 100vh; height: 100dvh; overflow-y: auto; overflow-x: hidden; z-index: 11; background: var(--surface) !important; border-inline-end: 1px solid var(--role-border); }
 .app-frame > .ant-layout-sider .ant-layout-sider-children { min-height: 100%; }
 .app-brand { height: 64px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--role-text); font-size: 16px; font-weight: 600; border-bottom: 1px solid var(--role-border); white-space: nowrap; }
-.app-brand-icon { color: var(--role-primary); font-size: 21px; }
+.brand-mark { position: relative; display: block; overflow: hidden; }
+.brand-mark img { position: absolute; display: block; max-width: none; }
+.app-brand-mark { flex: 0 0 28px; width: 28px; height: 18px; }
+.app-brand-mark img { top: -28px; left: -12px; width: 52px; height: 78px; }
+.ant-layout-sider-collapsed .app-brand { gap: 0; }
 .app-frame .ant-menu { background: transparent; border-inline-end: 0; }
 .app-frame .ant-menu-inline .ant-menu-item { height: auto; min-height: 44px; line-height: 1.5; padding-block: 12px; display: flex; align-items: center; }
 .app-frame .ant-menu .ant-menu-title-content { white-space: normal; overflow: visible; text-overflow: clip; }
@@ -43,7 +47,8 @@ a { text-underline-offset: .2em; }
 .register-form > .ant-form-item { grid-column: 1 / -1; }
 .register-form > .register-name { grid-column: auto; }
 .login-brand { display: grid; justify-items: center; gap: 8px; margin-bottom: 20px; text-align: center; }
-.login-brand-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 14px; color: var(--role-primary); background: var(--role-primary-soft); font-size: 24px; }
+.login-brand-icon { width: 60px; height: 39px; }
+.login-brand-icon img { top: -62px; left: -26px; width: 112px; height: 168px; }
 .login-brand h1 { margin: 0; color: var(--role-text); font-size: 22px; line-height: 1.4; font-weight: 600; }
 .login-brand p { margin: 0; color: var(--text-secondary); font-size: 14px; }
 .login-card .ant-input-affix-wrapper { height: 44px; min-height: 44px; padding-block: 8px; }

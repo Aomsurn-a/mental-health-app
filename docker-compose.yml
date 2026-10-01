@@ -31,6 +31,8 @@ services:
     build: ./frontend
     container_name: mental-health-frontend
     restart: always
+    environment:
+      - API_PROXY_TARGET=http://backend:3000
     ports:
       - "5173:5173"      # พอร์ต default ของ Vite dev server
     depends_on:

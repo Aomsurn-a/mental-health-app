@@ -1,8 +1,9 @@
 import React, { useContext, useState } from 'react';
 import { Form, Input, Button, Card, Typography, Alert, Tabs } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined, HeartOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import BrandMark from '../components/BrandMark';
 
 const { Title } = Typography;
 
@@ -45,7 +46,7 @@ const Login: React.FC = () => {
     <main className="login-page">
       <Card className="login-card">
         <div className="login-brand">
-          <span className="login-brand-icon"><HeartOutlined aria-hidden="true" /></span>
+          <BrandMark className="login-brand-icon" />
           <Title level={1}>
             ระบบตรวจสอบติดตามสุขภาพจิต<br />
             และนัดหมายนักจิต

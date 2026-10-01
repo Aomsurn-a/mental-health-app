@@ -10,6 +10,7 @@
     "patterns:run": "node src/jobs/patternDetectionJob.js",
     "test:trend": "node --test tests/trend.unit.cjs && node tests/trend.integration.cjs",
     "migrate:pre-session": "node scripts/migrate-pre-session.cjs",
+    "migrate:database-update": "node scripts/migrate-database-update.cjs",
     "test:pre-session": "node tests/preSession.integration.cjs",
     "test:chat-summary": "node tests/chatSummary.integration.cjs",
     "migrate:schedule-templates": "node scripts/migrate-schedule-templates.cjs",

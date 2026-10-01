@@ -16,9 +16,9 @@ import {
   MenuUnfoldOutlined,
   BankOutlined,
   ClockCircleOutlined,
-  HeartOutlined,
 } from '@ant-design/icons';
 import { AuthContext } from '../context/AuthContext';
+import BrandMark from '../components/BrandMark';
 import '../components/psychologist-polish.css';
 
 const { Header, Sider, Content } = Layout;
@@ -98,7 +98,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       >
         {/* Logo */}
         <div className="app-brand">
-          <HeartOutlined className="app-brand-icon" aria-hidden="true" />
+          <BrandMark className="app-brand-mark" />
           {!collapsed && <span>MindEase</span>}
         </div>
 

@@ -162,7 +162,7 @@ const PsyDashboard: React.FC = () => {
 
       </DashboardSection>
       <Title level={2} className="app-page-title" style={{ marginBottom: 4 }}>
-        สวัสดี, {auth?.user?.first_name || auth?.user?.username} 👋
+        สวัสดี, {auth?.user?.first_name || auth?.user?.username}
       </Title>
       <Text type="secondary">วันนี้ {dayjs().format('DD/MM/YYYY')}</Text>
 

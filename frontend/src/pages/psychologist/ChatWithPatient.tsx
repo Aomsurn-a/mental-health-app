@@ -12,6 +12,7 @@ import './ChatWithPatient.css';
 export default function ChatWithPatient({ patientId }: { patientId: number }) {
   const [open, setOpen] = useState(false);
   const [option, setOption] = useState('20');
+  const [source, setSource] = useState<'human' | 'ai'>('human');
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,11 +28,11 @@ export default function ChatWithPatient({ patientId }: { patientId: number }) {
     let selection: ChatSummarySelection;
     if (option === 'custom') {
       if (!range?.[0] || !range[1]) { setError('กรุณาเลือกวันเริ่มต้นและวันสิ้นสุด'); return; }
-      selection = { startDate: range[0].format('YYYY-MM-DD'), endDate: range[1].format('YYYY-MM-DD') };
+      selection = { startDate: range[0].format('YYYY-MM-DD'), endDate: range[1].format('YYYY-MM-DD'), source };
     } else if (option === 'month') {
       const today = dayjs(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()));
-      selection = { startDate: today.startOf('month').format('YYYY-MM-DD'), endDate: today.endOf('month').format('YYYY-MM-DD') };
-    } else selection = { lastNMessages: Number(option) };
+      selection = { startDate: today.startOf('month').format('YYYY-MM-DD'), endDate: today.endOf('month').format('YYYY-MM-DD'), source };
+    } else selection = { lastNMessages: Number(option), source };
     const controller = new AbortController(); request.current = controller;
     clear(); setLoading(true);
     try {
@@ -44,10 +45,13 @@ export default function ChatWithPatient({ patientId }: { patientId: number }) {
   };
   const formatTime = (value: string) => new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
   return <>
-    <Button aria-label="สรุปแชทให้หน่อย" icon={<FileTextOutlined />} onClick={() => { clear(); setOpen(true); }}>สรุปแชทให้หน่อย</Button>
+    <Button aria-label="สรุปแชท" icon={<FileTextOutlined />} onClick={() => { clear(); setOpen(true); }}>สรุปแชท</Button>
     <Modal className="psy-dialog chat-summary-dialog" title="สรุปประเด็นสำคัญจากแชท" open={open} onCancel={close} width={640}
       footer={<><Button onClick={close}>ปิด</Button><Button type="primary" onClick={() => void summarize()} disabled={loading} loading={loading} aria-label="สรุปข้อความ">สรุปข้อความ</Button></>}>
       <div className="chat-summary-form">
+        <label htmlFor="chat-summary-source">เลือกบทสนทนา</label>
+        <Select id="chat-summary-source" value={source} disabled={loading} onChange={value => { setSource(value); clear(); }}
+          options={[{ value: 'human', label: 'แชทกับผู้ป่วย' }, { value: 'ai', label: 'แชทของผู้ป่วยกับ AI' }]} />
         <label htmlFor="chat-summary-selection">เลือกข้อความที่ต้องการสรุป</label>
         <Select id="chat-summary-selection" value={option} disabled={loading} onChange={value => { setOption(value); clear(); }}
           options={[{ value: '5', label: '5 ข้อความล่าสุด' }, { value: '20', label: '20 ข้อความล่าสุด' }, { value: 'month', label: 'ทั้งหมดในเดือนนี้' }, { value: 'custom', label: 'เลือกช่วงวันที่เอง' }]} />

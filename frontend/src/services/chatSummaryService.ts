@@ -1,5 +1,5 @@
 import api from './api';
-export type ChatSummarySelection = { lastNMessages: number } | { startDate: string; endDate: string };
+export type ChatSummarySelection = ({ lastNMessages: number } | { startDate: string; endDate: string }) & { source?: 'human' | 'ai' };
 export interface ChatSummaryResult {
   summary: string[];
   messageCount: number;
