@@ -147,7 +147,7 @@ function RoleThemeProvider({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Router>
+    <Router basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
       <AuthProvider>
         <RoleThemeProvider>
           <AppRoutes />

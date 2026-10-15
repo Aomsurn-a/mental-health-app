@@ -63,7 +63,13 @@ const assessmentController = {
         [id]
       );
 
-      res.json({ ...sets[0], questions });
+      // MySQL JSON is decoded by mysql2; MariaDB's JSON alias is returned as text.
+      const normalizedQuestions = questions.map(q => ({
+        ...q,
+        answer_options: typeof q.answer_options === 'string'
+          ? JSON.parse(q.answer_options) : (q.answer_options || []),
+      }));
+      res.json({ ...sets[0], questions: normalizedQuestions });
     } catch (error) {
       console.error('GetSetById error:', error);
       res.status(500).json({ message: 'เกิดข้อผิดพลาด' });

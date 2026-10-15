@@ -11,3 +11,8 @@ build/
 
 # Logs
 *.log
+
+# Private database snapshots and generated demo credentials
+output/db264-backups/
+output/db264-demo/
+tmp/pdfs/

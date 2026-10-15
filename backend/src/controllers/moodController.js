@@ -54,7 +54,10 @@ const moodController = {
       if (rows.length === 0) {
         return res.json(null);
       }
-      res.json(rows[0]);
+      const row = rows[0];
+      // MariaDB returns its JSON alias as text; keep the API shape consistent with MySQL.
+      res.json({ ...row, answers: typeof row.answers === 'string'
+        ? JSON.parse(row.answers) : row.answers });
     } catch (error) {
       console.error('GetMoodByDate error:', error);
       res.status(500).json({ message: 'เกิดข้อผิดพลาด' });

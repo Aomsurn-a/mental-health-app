@@ -17,7 +17,31 @@ const aiChatRoutes = require('./routes/aiChatRoutes');
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = new Set([
+  'http://202.28.34.205:8080',
+  // Allow local development and optional local .env overrides.
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  ...(process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+]);
+
+const corsOptions = {
+  origin(origin, callback) {
+    // Requests without Origin (e.g. health checks or curl) are not browser CORS requests.
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error(`CORS origin not allowed: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);

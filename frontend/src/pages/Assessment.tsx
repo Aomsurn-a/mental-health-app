@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Radio, Typography, Progress, Result, Tag, Spin, Row, Col, Alert, Avatar, Empty } from 'antd';
+import { Card, Button, Radio, Typography, Progress, Result, Tag, Spin, Row, Col, Alert, Avatar, Empty, Space } from 'antd';
 import { UserOutlined, CalendarOutlined, MessageOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { assessmentService } from '../services/assessmentService';
@@ -54,6 +54,7 @@ const Assessment: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [recommended, setRecommended] = useState<Psychologist[]>([]);
   const [recLoading, setRecLoading] = useState(false);
+  const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
   const navigate = useNavigate();
 
   // โหลดรายการชุดประเมิน
@@ -120,6 +121,7 @@ const Assessment: React.FC = () => {
 
   // โหลดรายชื่อนักจิตวิทยาที่แนะนำ ตามระดับความเสี่ยง
   useEffect(() => {
+    setSelectedHospitalId(null);
     if (pageState !== 'result' || !result || result.risk_level === 'low') {
       setRecommended([]);
       return;
@@ -131,7 +133,7 @@ const Assessment: React.FC = () => {
       setRecLoading(true);
       try {
         const data = await appointmentService.getPsychologists();
-        setRecommended(data.slice(0, rec.count));
+        setRecommended(data);
       } catch {
         console.error('โหลดรายชื่อนักจิตวิทยาไม่สำเร็จ');
       } finally {
@@ -264,6 +266,20 @@ const Assessment: React.FC = () => {
     const config = riskConfig[result.risk_level];
     const rec = recommendationConfig[result.risk_level];
 
+    // รายการคลินิก/โรงพยาบาลที่มีนักจิตอยู่จริง (ไม่ซ้ำ)
+    const hospitalOptions = Array.from(
+      new Map(
+        recommended
+          .filter(p => p.hospital_id && p.hospital_name)
+          .map(p => [p.hospital_id as number, p.hospital_name as string])
+      ),
+      ([id, name]) => ({ id, name })
+    );
+    const visiblePsychologists = (selectedHospitalId === null
+      ? recommended
+      : recommended.filter(p => p.hospital_id === selectedHospitalId)
+    ).slice(0, rec?.count ?? 3);
+
     return (
       <div className="assessment-page assessment-result">
         <Result
@@ -310,13 +326,38 @@ const Assessment: React.FC = () => {
               style={{ marginBottom: 16 }}
             />
 
+            {!recLoading && hospitalOptions.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                  เลือกโรงพยาบาล/คลินิก
+                </Text>
+                <Space size={[8, 8]} wrap>
+                  <Tag.CheckableTag
+                    checked={selectedHospitalId === null}
+                    onChange={() => setSelectedHospitalId(null)}
+                  >
+                    ทั้งหมด
+                  </Tag.CheckableTag>
+                  {hospitalOptions.map(h => (
+                    <Tag.CheckableTag
+                      key={h.id}
+                      checked={selectedHospitalId === h.id}
+                      onChange={() => setSelectedHospitalId(h.id)}
+                    >
+                      {h.name}
+                    </Tag.CheckableTag>
+                  ))}
+                </Space>
+              </div>
+            )}
+
             {recLoading ? (
               <Spin />
-            ) : recommended.length === 0 ? (
+            ) : visiblePsychologists.length === 0 ? (
               <Empty description="ไม่พบนักจิตวิทยาที่แนะนำ" />
             ) : (
               <Row gutter={[16, 16]}>
-                {recommended.map(psy => (
+                {visiblePsychologists.map(psy => (
                   <Col xs={24} sm={12} key={psy.id}>
                     <Card size="small">
                       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
