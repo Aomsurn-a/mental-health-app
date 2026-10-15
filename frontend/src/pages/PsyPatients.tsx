@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Card, Table, Typography, Tag, Modal, Tabs, Row, Col, Input, Form, Button, message, Empty, Alert, Spin } from 'antd';
+import { Card, Table, Typography, Tag, Modal, Tabs, Row, Col, Input, Form, Button, message, Empty, Alert, Spin, Select } from 'antd';
 import { DashboardSection } from '../components/DashboardSection';
 import { useDashboardResource } from '../hooks/useDashboardResource';
 import { UserOutlined, SearchOutlined } from '@ant-design/icons';
@@ -10,6 +10,7 @@ import {
 import dayjs from 'dayjs';
 import { patientService } from '../services/patientService';
 import type { Patient, PatientDetail } from '../services/patientService';
+import { EditOutlined } from '@ant-design/icons';
 import PatientProfile from './psychologist/PatientProfile';
 
 const { Title, Text } = Typography;
@@ -29,6 +30,8 @@ const moodConfig: Record<number, { icon: string; label: string; color: string }>
   4: { icon: '🙂', label: 'ดี', color: '#73d13d' },
   5: { icon: '😄', label: 'ดีมาก', color: '#36cfc9' },
 };
+
+const genderText: Record<string, string> = { male: 'ชาย', female: 'หญิง', other: 'อื่นๆ' };
 
 const statusConfig: Record<string, { color: string; text: string }> = {
   pending:   { color: 'orange', text: 'รอการอนุมัติ' },
@@ -57,6 +60,43 @@ const PsyPatients: React.FC = () => {
   const [recordForm] = Form.useForm();
   const [recordLoading, setRecordLoading] = useState(false);
   const [profileRevision, setProfileRevision] = useState(0);
+  const [infoModalOpen, setInfoModalOpen] = useState(false);
+  const [infoSaving, setInfoSaving] = useState(false);
+  const [infoForm] = Form.useForm();
+
+  const openInfoModal = () => {
+    const p = patientDetail?.profile;
+    infoForm.setFieldsValue({
+      gender: p?.gender || undefined,
+      birth_date: p?.birth_date ? dayjs(p.birth_date).format('YYYY-MM-DD') : '',
+      blood_type: p?.blood_type || undefined,
+      phone: p?.phone || '',
+      allergy: p?.allergy || '',
+    });
+    setInfoModalOpen(true);
+  };
+
+  const handleSaveInfo = async (values: any) => {
+    if (!selectedPatient) return;
+    setInfoSaving(true);
+    try {
+      await patientService.updateProfile(selectedPatient.id, {
+        gender: values.gender || null,
+        birth_date: values.birth_date || null,
+        blood_type: values.blood_type || null,
+        phone: values.phone || null,
+        allergy: values.allergy || null,
+      });
+      message.success('บันทึกข้อมูลผู้ป่วยสำเร็จ');
+      setInfoModalOpen(false);
+      const data = await patientService.getPatientDetail(selectedPatient.id);
+      setPatientDetail(data);
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'บันทึกข้อมูลผู้ป่วยไม่สำเร็จ');
+    } finally {
+      setInfoSaving(false);
+    }
+  };
 
   const handleSearch = (value: string) => setSearchText(value);
   const query = searchText.trim().toLowerCase();
@@ -281,6 +321,27 @@ const PsyPatients: React.FC = () => {
         ) : patientDetail && (
           <Tabs items={[
             {
+              key: 'info',
+              label: 'ข้อมูลเบื้องต้น',
+              children: (
+                <div>
+                  <Row gutter={[16, 12]}>
+                    <Col xs={24} sm={12}><Text type="secondary">ชื่อ-นามสกุล</Text><br /><Text strong>{selectedPatient?.first_name} {selectedPatient?.last_name}</Text></Col>
+                    <Col xs={24} sm={12}><Text type="secondary">เพศ</Text><br /><Text strong>{patientDetail.profile?.gender ? genderText[patientDetail.profile.gender] : '-'}</Text></Col>
+                    <Col xs={24} sm={12}><Text type="secondary">วันเกิด / อายุ</Text><br />
+                      <Text strong>{patientDetail.profile?.birth_date
+                        ? `${dayjs(patientDetail.profile.birth_date).format('DD/MM/YYYY')} (${dayjs().diff(dayjs(patientDetail.profile.birth_date), 'year')} ปี)`
+                        : '-'}</Text></Col>
+                    <Col xs={24} sm={12}><Text type="secondary">หมู่เลือด</Text><br /><Text strong>{patientDetail.profile?.blood_type || '-'}</Text></Col>
+                    <Col xs={24} sm={12}><Text type="secondary">เบอร์โทร</Text><br /><Text strong>{patientDetail.profile?.phone || '-'}</Text></Col>
+                    <Col xs={24} sm={12}><Text type="secondary">อีเมล</Text><br /><Text strong>{selectedPatient?.email || '-'}</Text></Col>
+                    <Col xs={24}><Text type="secondary">ประวัติการแพ้</Text><br /><Text strong>{patientDetail.profile?.allergy || '-'}</Text></Col>
+                  </Row>
+                  <Button style={{ marginTop: 16 }} icon={<EditOutlined />} onClick={openInfoModal}>แก้ไขข้อมูลผู้ป่วย</Button>
+                </div>
+              ),
+            },
+            {
               key: 'assessment',
               label: `ผลประเมิน (${patientDetail.assessments.length})`,
               children: (
@@ -371,6 +432,41 @@ const PsyPatients: React.FC = () => {
             },
           ]} />
         )}
+      </Modal>
+
+      {/* Modal แก้ไขข้อมูลเบื้องต้นของผู้ป่วย */}
+      <Modal
+        className="psy-dialog"
+        title="แก้ไขข้อมูลเบื้องต้นของผู้ป่วย"
+        open={infoModalOpen}
+        onCancel={() => setInfoModalOpen(false)}
+        onOk={() => infoForm.submit()}
+        okText="บันทึก"
+        cancelText="ยกเลิก"
+        confirmLoading={infoSaving}
+      >
+        <Form form={infoForm} layout="vertical" onFinish={handleSaveInfo}>
+          <Form.Item name="gender" label="เพศ">
+            <Select allowClear placeholder="เลือกเพศ" options={[
+              { value: 'male', label: 'ชาย' }, { value: 'female', label: 'หญิง' }, { value: 'other', label: 'อื่นๆ' },
+            ]} />
+          </Form.Item>
+          <Form.Item name="birth_date" label="วันเกิด">
+            <Input type="date" max={dayjs().format('YYYY-MM-DD')} />
+          </Form.Item>
+          <Form.Item name="blood_type" label="หมู่เลือด">
+            <Select allowClear placeholder="เลือกหมู่เลือด" options={[
+              { value: 'A', label: 'A' }, { value: 'B', label: 'B' }, { value: 'AB', label: 'AB' },
+              { value: 'O', label: 'O' }, { value: 'unknown', label: 'ไม่ทราบ' },
+            ]} />
+          </Form.Item>
+          <Form.Item name="phone" label="เบอร์โทร" rules={[{ max: 20, message: 'ไม่เกิน 20 ตัวอักษร' }]}>
+            <Input placeholder="เบอร์โทรผู้ป่วย" />
+          </Form.Item>
+          <Form.Item name="allergy" label="ประวัติการแพ้">
+            <Input.TextArea rows={3} placeholder="ยา/อาหาร/อื่นๆ" />
+          </Form.Item>
+        </Form>
       </Modal>
 
       {/* Modal บันทึกการรักษา */}

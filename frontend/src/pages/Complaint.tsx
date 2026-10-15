@@ -209,10 +209,10 @@ const ComplaintPage: React.FC = () => {
           <Form.Item name="type" label="ประเภทคำร้อง"
             rules={[{ required: true, message: 'กรุณาเลือกประเภทคำร้อง' }]}>
             <Select placeholder="เลือกประเภทคำร้อง" onChange={handleTypeChange}>
-              <Select.Option value="change_psychologist">ขอเปลี่ยนนักจิตวิทยา</Select.Option>
+              {!isPsychologist && <Select.Option value="change_psychologist">ขอเปลี่ยนนักจิตวิทยา</Select.Option>}
               <Select.Option value="report_system">รายงานปัญหาระบบ</Select.Option>
-              <Select.Option value="report_psychologist">ร้องเรียนนักจิตวิทยา</Select.Option>
-              <Select.Option value="other">อื่นๆ</Select.Option>
+              {!isPsychologist && <Select.Option value="report_psychologist">ร้องเรียนนักจิตวิทยา</Select.Option>}
+              {!isPsychologist && <Select.Option value="other">อื่นๆ</Select.Option>}
             </Select>
           </Form.Item>
 

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, Col, message, Alert, Spin } from 'antd';
+import { Card, Table, Tag, Button, Modal, Form, Input, Select, Typography, Row, Col, message, Alert, Spin, Checkbox } from 'antd';
 import { useDashboardResource } from '../hooks/useDashboardResource';
 import { DashboardSection } from '../components/DashboardSection';
 import dayjs from 'dayjs';
@@ -36,6 +36,12 @@ const PsyAppointment: React.FC = () => {
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [statusForm] = Form.useForm();
+  const watchedStatus = Form.useWatch('status', statusForm);
+  const watchedReschedule = Form.useWatch('reschedule', statusForm);
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = dayjs();
+    return d.subtract((d.day() + 6) % 7, 'day').startOf('day');
+  });
   const [recordForm] = Form.useForm();
   const [nextApptForm] = Form.useForm();
 
@@ -108,18 +114,29 @@ const PsyAppointment: React.FC = () => {
   // อัพเดทสถานะ
   const handleUpdateStatus = async (values: any) => {
     if (!selectedAppt) return;
+    let reschedule: { appointment_date: string; appointment_time: string } | undefined;
+    if (values.status === 'rejected' && values.reschedule) {
+      const slot = availableSlots.find(s => s.id === values.slot_id);
+      if (!slot || slot.remaining <= 0) {
+        message.error('กรุณาเลือกคิวใหม่ที่ว่าง');
+        return;
+      }
+      reschedule = { appointment_date: dayjs(slot.work_date).format('YYYY-MM-DD'), appointment_time: slot.start_time };
+    }
     setLoading(true);
     try {
       await appointmentService.updateAppointmentStatus(
         selectedAppt.id,
         values.status,
-        values.status_note
+        values.status_note,
+        reschedule
       );
-      message.success('อัพเดทสถานะสำเร็จ');
+      message.success(reschedule ? 'เลื่อนคิวสำเร็จ (รอการอนุมัติอีกครั้ง)' : 'อัพเดทสถานะสำเร็จ');
       setStatusModalOpen(false);
+      setAvailableSlots([]);
       fetchAppointments();
-    } catch {
-      message.error('อัพเดทสถานะไม่สำเร็จ');
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'อัพเดทสถานะไม่สำเร็จ');
     } finally {
       setLoading(false);
     }
@@ -140,7 +157,6 @@ const PsyAppointment: React.FC = () => {
         psychologist_id: (selectedAppt as any).psychologist_id,
         appointment_date: slot.work_date,
         appointment_time: slot.start_time,
-        location: values.location,
         note: values.note,
       });
       message.success('นัดหมายครั้งถัดไปสำเร็จ');
@@ -227,10 +243,80 @@ const PsyAppointment: React.FC = () => {
   const pendingAppts = appointments.filter(a => a.status === 'pending');
   const otherAppts = appointments.filter(a => a.status !== 'pending');
 
+  // ปฏิทินรายสัปดาห์: แสดงเฉพาะนัดที่รอการอนุมัติและอนุมัติแล้ว
+  const weekDays = Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day'));
+  const calendarAppts = appointments.filter(a => {
+    if (a.status !== 'pending' && a.status !== 'approved') return false;
+    const d = dayjs(a.appointment_date);
+    return !d.isBefore(weekStart, 'day') && !d.isAfter(weekStart.add(6, 'day'), 'day');
+  });
+  const apptHours = calendarAppts.map(a => parseInt(a.appointment_time.slice(0, 2), 10));
+  const firstHour = Math.min(8, ...apptHours);
+  const lastHour = Math.max(18, ...apptHours);
+  const hourRows = Array.from({ length: lastHour - firstHour + 1 }, (_, i) => firstHour + i);
+  const calendarStyles = {
+    pending: { background: '#fff7e6', border: '1px dashed #fa8c16', color: '#ad4e00' },
+    approved: { background: '#f6ffed', border: '1px solid #52c41a', color: '#237804' },
+  } as const;
+
   return (
     <div className="psy-page">
       <header className="psy-page-header"><Title level={2}>จัดการนัดหมาย</Title></header>
       <DashboardSection label="นัดหมาย" resource={appointmentResource}>
+
+      <Card
+        title="ปฏิทินนัดหมายรายสัปดาห์"
+        style={{ marginBottom: 24 }}
+        extra={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button size="small" onClick={() => setWeekStart(w => w.subtract(7, 'day'))}>◀ สัปดาห์ก่อน</Button>
+            <Text>{weekStart.format('DD/MM')} - {weekStart.add(6, 'day').format('DD/MM/YYYY')}</Text>
+            <Button size="small" onClick={() => setWeekStart(w => w.add(7, 'day'))}>สัปดาห์ถัดไป ▶</Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+          <span><span style={{ display: 'inline-block', width: 14, height: 14, verticalAlign: 'middle', marginRight: 6, ...calendarStyles.pending }} />รอการอนุมัติ</span>
+          <span><span style={{ display: 'inline-block', width: 14, height: 14, verticalAlign: 'middle', marginRight: 6, ...calendarStyles.approved }} />อนุมัติแล้ว</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={{ width: 64, border: '1px solid #f0f0f0', padding: 4 }}>เวลา</th>
+                {weekDays.map(d => (
+                  <th key={d.format('YYYY-MM-DD')} style={{ border: '1px solid #f0f0f0', padding: 4, background: d.isSame(dayjs(), 'day') ? '#e6f4ff' : undefined }}>
+                    {['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'][(d.day() + 6) % 7]} {d.format('DD/MM')}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {hourRows.map(h => (
+                <tr key={h}>
+                  <td style={{ border: '1px solid #f0f0f0', padding: 4, textAlign: 'center', verticalAlign: 'top' }}>{String(h).padStart(2, '0')}:00</td>
+                  {weekDays.map(d => {
+                    const items = calendarAppts.filter(a =>
+                      dayjs(a.appointment_date).isSame(d, 'day') && parseInt(a.appointment_time.slice(0, 2), 10) === h);
+                    return (
+                      <td key={d.format('YYYY-MM-DD')} style={{ border: '1px solid #f0f0f0', padding: 2, verticalAlign: 'top', height: 44 }}>
+                        {items.map(a => (
+                          <div key={a.id} style={{ ...calendarStyles[a.status as 'pending' | 'approved'], borderRadius: 4, padding: '2px 6px', fontSize: 12, marginBottom: 2 }}>
+                            {a.appointment_time.slice(0, 5)} {a.first_name} {a.last_name}
+                            <br />
+                            <span>{a.status === 'pending' ? '(รอการอนุมัติ)' : '(อนุมัติแล้ว)'}</span>
+                          </div>
+                        ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {calendarAppts.length === 0 && <Text type="secondary">ไม่มีนัดหมายในสัปดาห์นี้</Text>}
+      </Card>
 
       <Card
         title={
@@ -258,7 +344,7 @@ const PsyAppointment: React.FC = () => {
         className="psy-dialog"
         title="อัพเดทสถานะนัดหมาย"
         open={statusModalOpen}
-        onCancel={() => setStatusModalOpen(false)}
+        onCancel={() => { setStatusModalOpen(false); setAvailableSlots([]); }}
         onOk={() => statusForm.submit()}
         okText="บันทึก"
         cancelText="ยกเลิก"
@@ -274,6 +360,37 @@ const PsyAppointment: React.FC = () => {
               <option value="completed">เสร็จสิ้น</option>
             </select>
           </Form.Item>
+          {watchedStatus === 'rejected' && selectedAppt?.status === 'pending' && (
+            <>
+              <Form.Item name="reschedule" valuePropName="checked">
+                <Checkbox onChange={e => {
+                  statusForm.setFieldValue('slot_id', undefined);
+                  if (e.target.checked) {
+                    const psyId = (selectedAppt as any)?.psychologist_id;
+                    if (psyId) fetchAvailableSlots(psyId);
+                  } else {
+                    setAvailableSlots([]);
+                  }
+                }}>เลื่อนไปคิวใหม่ (นัดจะกลับเป็น "รอการอนุมัติ")</Checkbox>
+              </Form.Item>
+              {watchedReschedule && (
+                <Form.Item name="slot_id" label="เลือกคิวใหม่จากตารางงาน"
+                  rules={[{ required: true, message: 'กรุณาเลือกคิวใหม่' }]}>
+                  <Select
+                    placeholder="เลือกวันเวลาที่ว่าง"
+                    loading={slotsLoading}
+                    notFoundContent={slotsLoading ? 'กำลังโหลด...' : 'ไม่มีช่วงเวลาว่างตามตารางงาน'}
+                  >
+                    {availableSlots.map(s => (
+                      <Select.Option key={s.id} value={s.id}>
+                        {dayjs(s.work_date).format('DD/MM/YYYY')} {s.start_time.slice(0, 5)}-{s.end_time.slice(0, 5)} น. (เหลือ {s.remaining} ที่)
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              )}
+            </>
+          )}
           <Form.Item name="status_note" label="หมายเหตุ">
             <TextArea rows={3} placeholder="เหตุผลหรือหมายเหตุเพิ่มเติม..." />
           </Form.Item>
@@ -358,9 +475,6 @@ const PsyAppointment: React.FC = () => {
                 </Select.Option>
               ))}
             </Select>
-          </Form.Item>
-          <Form.Item name="location" label="สถานที่">
-            <Input placeholder="สถานที่นัดหมาย" />
           </Form.Item>
           <Form.Item name="note" label="หมายเหตุ">
             <TextArea rows={2} placeholder="หมายเหตุเพิ่มเติม..." />

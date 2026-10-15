@@ -8,6 +8,11 @@ const complaintController = {
       const { type, detail, target_id, full_legal_name, replacement_gender } = req.body;
       const sender_id = req.user.id;
 
+      // นักจิตวิทยาส่งได้เฉพาะรายงานปัญหาระบบ
+      if (req.user.role === 'psychologist' && type !== 'report_system') {
+        return res.status(403).json({ message: 'นักจิตวิทยาสามารถส่งได้เฉพาะรายงานปัญหาระบบ' });
+      }
+
       // ยืนยันว่าผู้สมัครเปลี่ยนนักจิตเป็นคนในคลินิกเดิมและไม่เคยนัดหมายด้วยมาก่อน
       if (type === 'change_psychologist') {
         if (!target_id || !['male', 'female'].includes(replacement_gender)) {

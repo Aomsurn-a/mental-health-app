@@ -309,6 +309,50 @@ const appointmentController = {
         return res.status(400).json({ message: 'สถานะไม่ถูกต้อง' });
       }
 
+      // ปฏิเสธพร้อมเลื่อนไปคิวใหม่: ย้ายนัดเดิมไปคิวที่เลือกและกลับเป็นรอการอนุมัติ
+      const reschedule = req.body.reschedule;
+      if (status === 'rejected' && reschedule) {
+        const newTime = reschedule.appointment_time;
+        if (!reschedule.appointment_date || !newTime) return res.status(400).json({ message: 'กรุณาเลือกคิวใหม่ให้ครบ' });
+        const newDate = toDateOnly(reschedule.appointment_date);
+
+        const [psy] = await db.query('SELECT id FROM psychologists WHERE user_id = ?', [user_id]);
+        if (psy.length === 0) return res.status(404).json({ message: 'ไม่พบข้อมูลนักจิตวิทยา' });
+
+        const [appt] = await db.query(
+          `SELECT id, status FROM appointments WHERE id = ? AND psychologist_id = ? AND active_flag = 1`,
+          [id, psy[0].id]
+        );
+        if (appt.length === 0) return res.status(404).json({ message: 'ไม่พบการนัดหมาย' });
+        if (appt[0].status !== 'pending') return res.status(400).json({ message: 'เลื่อนคิวได้เฉพาะนัดที่รอการอนุมัติ' });
+
+        const [slotRows] = await db.query(
+          `SELECT (ps.max_patients_per_slot * TIMESTAMPDIFF(HOUR, ps.start_time, ps.end_time)) AS total_slots,
+                  (SELECT COUNT(*) FROM appointments a
+                    WHERE a.psychologist_id = ps.psychologist_id AND a.id <> ?
+                      AND a.appointment_date = ps.work_date
+                      AND a.appointment_time >= ps.start_time AND a.appointment_time < ps.end_time
+                      AND a.active_flag = 1 AND a.status NOT IN ('rejected', 'cancelled')) AS booked_count
+           FROM psychologist_schedules ps
+           JOIN psychologist_schedule_weeks w ON ps.week_id = w.id
+           WHERE ps.psychologist_id = ? AND ps.active_flag = 1 AND w.active_flag = 1
+             AND ps.work_date = ? AND ps.start_time <= ? AND ps.end_time > ?
+           LIMIT 1`,
+          [id, psy[0].id, newDate, newTime, newTime]
+        );
+        if (slotRows.length === 0) return res.status(400).json({ message: 'คิวใหม่ไม่อยู่ในตารางงานของคุณ' });
+        if (Number(slotRows[0].booked_count) >= Number(slotRows[0].total_slots)) {
+          return res.status(400).json({ message: 'คิวใหม่เต็มแล้ว กรุณาเลือกคิวอื่น' });
+        }
+
+        await db.query(
+          `UPDATE appointments SET appointment_date = ?, appointment_time = ?, status = 'pending', status_note = ?, updated_by = ?
+           WHERE id = ?`,
+          [newDate, newTime, status_note || 'นักจิตวิทยาเสนอเลื่อนนัดไปเวลาใหม่', user_id, id]
+        );
+        return res.json({ message: 'เลื่อนคิวสำเร็จ' });
+      }
+
       await db.query(
         `UPDATE appointments SET status = ?, status_note = ?, updated_by = ? WHERE id = ?`,
         [status, status_note, user_id, id]
@@ -366,7 +410,7 @@ const appointmentController = {
         `INSERT INTO appointments
           (user_id, psychologist_id, appointment_date, appointment_time, location, status, status_note, created_by, updated_by)
           VALUES (?, ?, ?, ?, ?, 'approved', ?, ?, ?)`,
-          [user_id, psychologist_id, appointment_date, appointment_time, location, note, psy_user_id, psy_user_id]
+          [user_id, psychologist_id, appointment_date, appointment_time, location || null, note || null, psy_user_id, psy_user_id]
         );
 
       res.status(201).json({

@@ -10,7 +10,16 @@ export interface Patient {
   last_appointment: string;
 }
 
+export interface PatientProfileInfo {
+  gender: 'male' | 'female' | 'other' | null;
+  birth_date: string | null;
+  blood_type: 'A' | 'B' | 'AB' | 'O' | 'unknown' | null;
+  phone: string | null;
+  allergy: string | null;
+}
+
 export interface PatientDetail {
+  profile?: PatientProfileInfo;
   assessments: {
     id: number;
     score: number;
@@ -54,6 +63,10 @@ export const patientService = {
   getPatientDetail: async (patient_id: number): Promise<PatientDetail> => {
     const response = await api.get(`/patient/${patient_id}`);
     return response.data;
+  },
+
+  updateProfile: async (patient_id: number, data: Partial<PatientProfileInfo>): Promise<void> => {
+    await api.put(`/patient/${patient_id}/profile`, data);
   },
 
   addRecord: async (data: {

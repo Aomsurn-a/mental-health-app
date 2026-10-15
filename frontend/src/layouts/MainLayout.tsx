@@ -19,6 +19,7 @@ import {
 } from '@ant-design/icons';
 import { AuthContext } from '../context/AuthContext';
 import BrandMark from '../components/BrandMark';
+import PsyNotificationBell from '../components/PsyNotificationBell';
 import '../components/psychologist-polish.css';
 
 const { Header, Sider, Content } = Layout;
@@ -131,6 +132,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             onClick={() => setCollapsed(!collapsed)}
           />
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {role === 'psychologist' && <PsyNotificationBell />}
           {/* User Info */}
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Button type="text" className="app-user-trigger" aria-label="เมนูบัญชีผู้ใช้">
@@ -138,6 +141,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <Text>{auth?.user?.first_name || auth?.user?.username}</Text>
             </Button>
           </Dropdown>
+          </div>
         </Header>
 
         {/* Content */}

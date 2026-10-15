@@ -24,6 +24,8 @@ const AdminUsers: React.FC = () => {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserAdmin | null>(null);
   const [selectedRole, setSelectedRole] = useState('user');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
@@ -182,7 +184,38 @@ const AdminUsers: React.FC = () => {
       </Row>
 
       <Card>
-        <Table loading={listLoading} className="admin-table" tableLayout="fixed" scroll={{ x: 960 }} dataSource={users} columns={columns} rowKey="id"
+        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={12} md={8}>
+            <Select
+              style={{ width: '100%' }}
+              aria-label="กรอง Role"
+              value={roleFilter}
+              onChange={setRoleFilter}
+              options={[
+                { value: 'all', label: 'ทุก Role' },
+                { value: 'user', label: 'ผู้ใช้งาน' },
+                { value: 'psychologist', label: 'นักจิตวิทยา' },
+                { value: 'admin', label: 'ผู้ดูแลระบบ' },
+              ]}
+            />
+          </Col>
+          <Col xs={24} sm={12} md={8}>
+            <Select
+              style={{ width: '100%' }}
+              aria-label="กรองสถานะ"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: 'all', label: 'ทุกสถานะ' },
+                { value: 'active', label: 'ใช้งาน' },
+                { value: 'suspended', label: 'ระงับ' },
+              ]}
+            />
+          </Col>
+        </Row>
+        <Table loading={listLoading} className="admin-table" tableLayout="fixed" scroll={{ x: 960 }}
+          dataSource={users.filter(u => (roleFilter === 'all' || u.role === roleFilter) && (statusFilter === 'all' || u.status === statusFilter))}
+          columns={columns} rowKey="id"
           locale={{ emptyText: 'ไม่มีผู้ใช้งาน' }} />
       </Card>
 
@@ -286,7 +319,6 @@ const AdminUsers: React.FC = () => {
           <Form.Item name="status" label="สถานะ">
             <Select>
               <Select.Option value="active">ใช้งาน</Select.Option>
-              <Select.Option value="inactive">ไม่ใช้งาน</Select.Option>
               <Select.Option value="suspended">ระงับ</Select.Option>
             </Select>
           </Form.Item>

@@ -110,8 +110,13 @@ export const appointmentService = {
     return response.data;
   },
 
-  updateAppointmentStatus: async (id: number, status: string, status_note?: string): Promise<void> => {
-    await api.patch(`/appointment/${id}/status`, { status, status_note });
+  updateAppointmentStatus: async (
+    id: number,
+    status: string,
+    status_note?: string,
+    reschedule?: { appointment_date: string; appointment_time: string },
+  ): Promise<void> => {
+    await api.patch(`/appointment/${id}/status`, { status, status_note, reschedule });
   },
 
   // เพิ่มใน appointmentService

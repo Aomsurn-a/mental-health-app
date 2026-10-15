@@ -80,9 +80,68 @@ const patientController = {
         [patient_id]
       );
 
-      res.json({ assessments, moods, appointments, records });
+      // ข้อมูลเบื้องต้นของผู้ป่วย (ถ้ายังไม่มีแถวใน patients จะได้ค่าว่าง)
+      const [profileRows] = await db.query(
+        `SELECT u.phone AS user_phone, p.gender, p.birth_date, p.blood_type, p.phone, p.allergy
+         FROM users u LEFT JOIN patients p ON p.user_id = u.id AND p.active_flag = 1
+         WHERE u.id = ?`,
+        [patient_id]
+      );
+      const raw = profileRows[0] || {};
+      const profile = {
+        gender: raw.gender || null,
+        birth_date: raw.birth_date || null,
+        blood_type: raw.blood_type || null,
+        phone: raw.phone || raw.user_phone || null,
+        allergy: raw.allergy || null,
+      };
+
+      res.json({ assessments, moods, appointments, records, profile });
     } catch (error) {
       console.error('GetPatientDetail error:', error);
+      res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+    }
+  },
+
+  // แก้ไขข้อมูลเบื้องต้นของผู้ป่วย (เฉพาะผู้ป่วยที่เคยนัดหมายกับนักจิตคนนี้)
+  updatePatientProfile: async (req, res) => {
+    try {
+      const patient_user_id = Number(req.params.patient_id);
+      const user_id = req.user.id;
+      const { gender, birth_date, blood_type, phone, allergy } = req.body;
+
+      const [psy] = await db.query('SELECT id FROM psychologists WHERE user_id = ?', [user_id]);
+      if (psy.length === 0) return res.status(404).json({ message: 'ไม่พบข้อมูลนักจิตวิทยา' });
+
+      const [related] = await db.query(
+        'SELECT id FROM appointments WHERE psychologist_id = ? AND user_id = ? AND active_flag = 1 LIMIT 1',
+        [psy[0].id, patient_user_id]
+      );
+      if (related.length === 0) return res.status(403).json({ message: 'ไม่มีสิทธิ์แก้ไขข้อมูลผู้ป่วยรายนี้' });
+
+      if (gender && !['male', 'female', 'other'].includes(gender)) return res.status(400).json({ message: 'เพศไม่ถูกต้อง' });
+      if (blood_type && !['A', 'B', 'AB', 'O', 'unknown'].includes(blood_type)) return res.status(400).json({ message: 'หมู่เลือดไม่ถูกต้อง' });
+      if (birth_date && !/^\d{4}-\d{2}-\d{2}$/.test(birth_date)) return res.status(400).json({ message: 'วันเกิดไม่ถูกต้อง' });
+      if (phone && String(phone).length > 20) return res.status(400).json({ message: 'เบอร์โทรยาวเกินไป' });
+
+      const values = [gender || null, birth_date || null, blood_type || null, phone || null, allergy || null];
+      const [existing] = await db.query('SELECT id FROM patients WHERE user_id = ?', [patient_user_id]);
+      if (existing.length > 0) {
+        await db.query(
+          `UPDATE patients SET gender = ?, birth_date = ?, blood_type = ?, phone = ?, allergy = ?, active_flag = 1, updated_by = ?
+           WHERE user_id = ?`,
+          [...values, user_id, patient_user_id]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO patients (user_id, gender, birth_date, blood_type, phone, allergy, created_by, updated_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [patient_user_id, ...values, user_id, user_id]
+        );
+      }
+      res.json({ message: 'บันทึกข้อมูลผู้ป่วยสำเร็จ' });
+    } catch (error) {
+      console.error('UpdatePatientProfile error:', error);
       res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
     }
   },
